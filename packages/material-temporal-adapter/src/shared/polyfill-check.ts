@@ -7,11 +7,11 @@
 let temporalAvailable: boolean | undefined;
 
 export function ensureTemporalAvailable(): void {
-  temporalAvailable ??= typeof globalThis.Temporal !== 'undefined';
+  temporalAvailable ??= typeof globalThis.Temporal !== "undefined";
 
   if (!temporalAvailable) {
     throw new Error(
-      'Temporal is not available. Import temporal-polyfill/global before using material-temporal-adapter.',
+      "Temporal is not available. @kbrilla/material-temporal-adapter requires a Temporal polyfill in runtimes without native Temporal. Import temporal-polyfill/global or @js-temporal/polyfill before using the adapter.",
     );
   }
 }

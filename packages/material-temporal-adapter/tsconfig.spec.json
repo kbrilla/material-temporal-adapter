@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.lib.json",
+  "compilerOptions": {
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "noEmit": true,
+    "types": ["vitest/globals"]
+  },
+  "include": ["src/**/*.spec-d.ts", "src/temporal.d.ts", "types/**/*.d.ts"],
+  "exclude": []
+}

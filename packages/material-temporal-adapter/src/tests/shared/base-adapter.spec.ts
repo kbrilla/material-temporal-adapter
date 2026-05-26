@@ -7,10 +7,11 @@ import {
   createInvalidPlainDate,
   isTemporalInvalid,
 } from "../../shared/invalid";
+import { TemporalBaseOptions } from "../../shared/types";
 
 class TestPlainDateAdapter extends BaseTemporalAdapter<Temporal.PlainDate> {
-  constructor() {
-    super({ calendar: "iso8601", overflow: "reject" });
+  constructor(options: Partial<TemporalBaseOptions> = {}) {
+    super({ calendar: "iso8601", overflow: "reject", ...options });
   }
 
   today() {
@@ -70,7 +71,10 @@ describe("BaseTemporalAdapter", () => {
   beforeEach(() => {
     const injector = createEnvironmentInjector(
       [
-        { provide: NgZone, useFactory: () => new NgZone({ enableLongStackTrace: false }) },
+        {
+          provide: NgZone,
+          useFactory: () => new NgZone({ enableLongStackTrace: false }),
+        },
         { provide: MAT_DATE_LOCALE, useValue: "en-US" },
       ],
       null,
@@ -90,5 +94,35 @@ describe("BaseTemporalAdapter", () => {
 
   it("getMonthNames returns 12 names using 2017 reference", () => {
     expect(adapter.getMonthNames("long")).toHaveLength(12);
+  });
+
+  it("getFirstDayOfWeek honors options.firstDayOfWeek", () => {
+    const injector = createEnvironmentInjector(
+      [
+        {
+          provide: NgZone,
+          useFactory: () => new NgZone({ enableLongStackTrace: false }),
+        },
+        { provide: MAT_DATE_LOCALE, useValue: "en-US" },
+      ],
+      null,
+    );
+    const mondayFirstAdapter = injector.runInContext(
+      () => new TestPlainDateAdapter({ firstDayOfWeek: 1 }),
+    );
+
+    expect(mondayFirstAdapter.getFirstDayOfWeek()).toBe(1);
+  });
+
+  it("getNumDaysInMonth returns 29 for February 2024", () => {
+    expect(
+      adapter.getNumDaysInMonth(Temporal.PlainDate.from("2024-02-01")),
+    ).toBe(29);
+  });
+
+  it("format throws for invalid dates", () => {
+    expect(() =>
+      adapter.format(adapter.invalid(), { year: "numeric" }),
+    ).toThrowError(/Cannot format invalid date/);
   });
 });
