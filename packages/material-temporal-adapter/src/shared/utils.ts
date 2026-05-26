@@ -9,7 +9,7 @@ interface IntlLocaleWithWeekInfo {
   getWeekInfo?: () => {readonly firstDay?: number};
 }
 
-interface IntlWithLocale extends Intl {
+interface IntlWithLocale {
   readonly Locale?: new (locale: string) => IntlLocaleWithWeekInfo;
 }
 

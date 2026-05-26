@@ -11,7 +11,7 @@ import { ensureTemporalAvailable } from "./polyfill-check";
 import { TemporalBaseOptions } from "./types";
 import { getDefaultLocale, getLocaleFirstDayOfWeek } from "./utils";
 
-type TemporalDateLike = Temporal.PlainDate | Temporal.PlainDateTime;
+type TemporalDateLike = Temporal.PlainDate | Temporal.PlainDateTime | Temporal.ZonedDateTime;
 
 /**
  * Base class for Temporal adapters that share date-only calendar behavior.
@@ -151,6 +151,19 @@ export abstract class BaseTemporalAdapter<
     return this._formatWithLocale(date, options);
   }
 
+  override deserialize(value: unknown): T | null {
+    if (value == null || value === "") {
+      return null;
+    }
+    if (this.isDateInstance(value)) {
+      return this.clone(value);
+    }
+    if (typeof value === "number") {
+      return this._createFromEpochMs(value);
+    }
+    return this.invalid();
+  }
+
   protected _getCalendarId(): string {
     return this._calendar;
   }
@@ -191,7 +204,6 @@ export abstract class BaseTemporalAdapter<
   abstract override isValid(date: T): boolean;
   abstract override isDateInstance(value: unknown): value is T;
   abstract override toIso8601(date: T): string;
-  abstract override deserialize(value: unknown): T | null;
   abstract override parse(value: unknown, parseFormat?: unknown): T | null;
 
   /** Parses an ISO 8601 string. Returns null if parsing fails. */
