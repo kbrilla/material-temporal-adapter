@@ -1,15 +1,22 @@
 # Release workflow — DISABLED
 #
 # npm publish is deferred until the npm organization/account is ready.
-# Do not enable this workflow or add NPM_TOKEN until publish is configured.
+# Do not enable or add NPM_TOKEN until publish is configured.
 #
 # Planned steps (for future enablement):
 #   - on: release published (or workflow_dispatch with tag)
 #   - pnpm install --frozen-lockfile
 #   - pnpm build && pnpm test
 #   - changeset publish (requires NPM_TOKEN secret)
-#
-# name: Release
-# on:
-#   release:
-#     types: [published]
+
+name: Release (disabled)
+
+on:
+  push:
+    branches: [__release_disabled__]
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Release workflow is disabled until npm account is ready."
