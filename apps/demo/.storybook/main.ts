@@ -1,35 +1,11 @@
 import type {StorybookConfig} from '@storybook/angular';
 
-/** GitHub Pages project site: https://kbrilla.github.io/material-temporal-adapter/ */
-const pagesBasePath = normalizeBasePath(process.env['STORYBOOK_BASE_PATH']);
-
-function normalizeBasePath(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  return value.endsWith('/') ? value : `${value}/`;
-}
-
-type WebpackConfigWithPublicPath = {
-  output?: {
-    publicPath?: string;
-  };
-};
-
-function applyPublicPath(
-  config: WebpackConfigWithPublicPath,
-  publicPath: string,
-): WebpackConfigWithPublicPath {
-  return {
-    ...config,
-    output: {
-      ...config.output,
-      publicPath,
-    },
-  };
-}
-
+/**
+ * GitHub Pages serves this static build at `/material-temporal-adapter/`.
+ * Use Storybook's default relative asset paths (`./main.*.js`) — do NOT set
+ * webpack `publicPath` to `/material-temporal-adapter/` or iframe bundles 404
+ * with a doubled path (`.//material-temporal-adapter/...`).
+ */
 const config: StorybookConfig = {
   stories: ['../src/stories/**/*.@(mdx|stories.@(js|jsx|ts|tsx))'],
   addons: ['@storybook/addon-docs'],
@@ -38,10 +14,6 @@ const config: StorybookConfig = {
     options: {},
   },
   docs: {},
-  webpackFinal: async (webpackConfig) =>
-    pagesBasePath
-      ? applyPublicPath(webpackConfig as WebpackConfigWithPublicPath, pagesBasePath)
-      : webpackConfig,
 };
 
 export default config;

@@ -45,8 +45,6 @@ jobs:
         run: pnpm build
 
       - name: Build Storybook static site
-        env:
-          STORYBOOK_BASE_PATH: /material-temporal-adapter
         run: pnpm demo:build
 
       - name: Upload Pages artifact
