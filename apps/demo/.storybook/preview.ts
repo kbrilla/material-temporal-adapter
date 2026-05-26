@@ -1,22 +1,23 @@
-import {provideZoneChangeDetection} from '@angular/core';
-import {MAT_DATE_LOCALE} from '@angular/material/core';
+import {type ApplicationConfig, provideZoneChangeDetection} from '@angular/core';
 import {provideAnimationsAsync} from '@angular/platform-browser/animations/async';
-import {applicationConfig, type Preview} from '@storybook/angular';
+import {applicationConfig, moduleMetadata, type Preview} from '@storybook/angular';
 
-import {providePlainDateAdapter} from '@kbrilla/material-temporal-adapter';
+import {previewPlainDateAdapterProviders} from '../src/stories/shared/story-providers';
 
 import 'temporal-polyfill/global';
 
+const adapterProviders = previewPlainDateAdapterProviders();
+
+const globalStoryProviders: NonNullable<ApplicationConfig['providers']> = [
+  provideZoneChangeDetection({eventCoalescing: true}),
+  provideAnimationsAsync(),
+  ...adapterProviders,
+];
+
 const preview: Preview = {
   decorators: [
-    applicationConfig({
-      providers: [
-        provideZoneChangeDetection({eventCoalescing: true}),
-        provideAnimationsAsync(),
-        ...providePlainDateAdapter(),
-        {provide: MAT_DATE_LOCALE, useValue: 'en-US'},
-      ],
-    }),
+    moduleMetadata({providers: adapterProviders}),
+    applicationConfig({providers: globalStoryProviders}),
   ],
   parameters: {
     controls: {

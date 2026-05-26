@@ -4,19 +4,23 @@
  * SPDX-License-Identifier: MIT
  */
 
-import {inject, Injectable} from '@angular/core';
+import {Inject, Injectable, Optional} from '@angular/core';
+import {MAT_DATE_LOCALE} from '@angular/material/core';
 
 import {BaseTemporalAdapter} from '../shared/base-temporal-adapter';
 import {createInvalidPlainDateTime, isTemporalInvalid} from '../shared/invalid';
-import {MAT_TEMPORAL_PLAIN_DATETIME_OPTIONS} from './plain-datetime-options';
+import {MAT_TEMPORAL_PLAIN_DATETIME_OPTIONS, type PlainDateTimeOptions} from './plain-datetime-options';
 
 /**
  * DateAdapter implementation for {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/PlainDateTime Temporal.PlainDateTime}.
  */
 @Injectable()
 export class PlainDateTimeAdapter extends BaseTemporalAdapter<Temporal.PlainDateTime> {
-  constructor() {
-    super(inject(MAT_TEMPORAL_PLAIN_DATETIME_OPTIONS));
+  constructor(
+    @Inject(MAT_TEMPORAL_PLAIN_DATETIME_OPTIONS) options: PlainDateTimeOptions,
+    @Optional() @Inject(MAT_DATE_LOCALE) locale: string | null,
+  ) {
+    super(options, locale);
   }
 
   clone(date: Temporal.PlainDateTime): Temporal.PlainDateTime {

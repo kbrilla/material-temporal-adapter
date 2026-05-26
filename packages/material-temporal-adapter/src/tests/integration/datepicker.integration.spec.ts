@@ -7,6 +7,7 @@ import { MatInputModule } from "@angular/material/input";
 import { describe, expect, it } from "vitest";
 
 import { PlainDateAdapter, providePlainDateAdapter } from "../../plain-date";
+import { testInjectorProviders } from "../shared/test-providers";
 
 @Component({
   standalone: true,
@@ -29,16 +30,7 @@ class DatepickerHostComponent {
 
 describe("datepicker integration", () => {
   it("wires MatDatepicker to PlainDateAdapter and typed FormControl values", () => {
-    const injector = createEnvironmentInjector(
-      [
-        {
-          provide: NgZone,
-          useFactory: () => new NgZone({ enableLongStackTrace: false }),
-        },
-        ...providePlainDateAdapter(),
-      ],
-      null,
-    );
+    const injector = createEnvironmentInjector(testInjectorProviders(...providePlainDateAdapter()), null);
     const host = new DatepickerHostComponent();
     const adapter = injector.runInContext(
       () => injector.get(DateAdapter) as PlainDateAdapter,

@@ -1,4 +1,4 @@
-import {createEnvironmentInjector, NgZone} from '@angular/core';
+import {createEnvironmentInjector} from '@angular/core';
 import {DateAdapter, MAT_DATE_FORMATS} from '@angular/material/core';
 import {describe, expect, it} from 'vitest';
 
@@ -8,14 +8,12 @@ import {
   provideZonedDateTimeAdapter,
   ZonedDateTimeAdapter,
 } from '../../zoned-datetime';
+import {testInjectorProviders} from '../shared/test-providers';
 
 describe('provideZonedDateTimeAdapter', () => {
   it('should provide ZonedDateTimeAdapter as DateAdapter', () => {
     const injector = createEnvironmentInjector(
-      [
-        {provide: NgZone, useFactory: () => new NgZone({enableLongStackTrace: false})},
-        ...provideZonedDateTimeAdapter({timezone: 'UTC'}),
-      ],
+      testInjectorProviders(...provideZonedDateTimeAdapter({timezone: 'UTC'})),
       null,
     );
 
@@ -27,10 +25,7 @@ describe('provideZonedDateTimeAdapter', () => {
 
   it('should provide default zoned datetime formats', () => {
     const injector = createEnvironmentInjector(
-      [
-        {provide: NgZone, useFactory: () => new NgZone({enableLongStackTrace: false})},
-        ...provideZonedDateTimeAdapter({timezone: 'UTC'}),
-      ],
+      testInjectorProviders(...provideZonedDateTimeAdapter({timezone: 'UTC'})),
       null,
     );
 
@@ -46,8 +41,7 @@ describe('provideZonedDateTimeAdapter', () => {
       },
     };
     const injector = createEnvironmentInjector(
-      [
-        {provide: NgZone, useFactory: () => new NgZone({enableLongStackTrace: false})},
+      testInjectorProviders(
         ...provideZonedDateTimeAdapter(
           {
             timezone: 'America/New_York',
@@ -56,7 +50,7 @@ describe('provideZonedDateTimeAdapter', () => {
           },
           customFormats,
         ),
-      ],
+      ),
       null,
     );
 

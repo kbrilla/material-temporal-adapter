@@ -1,4 +1,4 @@
-import {createEnvironmentInjector, NgZone} from '@angular/core';
+import {createEnvironmentInjector} from '@angular/core';
 import {DateAdapter, MAT_DATE_FORMATS} from '@angular/material/core';
 import {describe, expect, it} from 'vitest';
 
@@ -8,16 +8,11 @@ import {
   PlainDateTimeAdapter,
   providePlainDateTimeAdapter,
 } from '../../plain-datetime';
+import {testInjectorProviders} from '../shared/test-providers';
 
 describe('providePlainDateTimeAdapter', () => {
   it('should provide PlainDateTimeAdapter as DateAdapter', () => {
-    const injector = createEnvironmentInjector(
-      [
-        {provide: NgZone, useFactory: () => new NgZone({enableLongStackTrace: false})},
-        ...providePlainDateTimeAdapter(),
-      ],
-      null,
-    );
+    const injector = createEnvironmentInjector(testInjectorProviders(...providePlainDateTimeAdapter()), null);
 
     const adapter = injector.runInContext(() => injector.get(DateAdapter));
 
@@ -26,13 +21,7 @@ describe('providePlainDateTimeAdapter', () => {
   });
 
   it('should provide default datetime formats', () => {
-    const injector = createEnvironmentInjector(
-      [
-        {provide: NgZone, useFactory: () => new NgZone({enableLongStackTrace: false})},
-        ...providePlainDateTimeAdapter(),
-      ],
-      null,
-    );
+    const injector = createEnvironmentInjector(testInjectorProviders(...providePlainDateTimeAdapter()), null);
 
     expect(injector.get(MAT_DATE_FORMATS)).toBe(MAT_TEMPORAL_DATETIME_FORMATS);
   });
@@ -46,13 +35,12 @@ describe('providePlainDateTimeAdapter', () => {
       },
     };
     const injector = createEnvironmentInjector(
-      [
-        {provide: NgZone, useFactory: () => new NgZone({enableLongStackTrace: false})},
+      testInjectorProviders(
         ...providePlainDateTimeAdapter(customFormats, {
           calendar: 'iso8601',
           overflow: 'constrain',
         }),
-      ],
+      ),
       null,
     );
 

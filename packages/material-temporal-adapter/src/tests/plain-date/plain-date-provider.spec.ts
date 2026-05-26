@@ -1,23 +1,18 @@
-import {createEnvironmentInjector, NgZone} from '@angular/core';
+import {createEnvironmentInjector} from '@angular/core';
 import {DateAdapter, MAT_DATE_FORMATS} from '@angular/material/core';
 import {describe, expect, it} from 'vitest';
 
+import {MAT_TEMPORAL_DATE_FORMATS} from '../../formats/date-formats';
 import {
   MAT_TEMPORAL_PLAIN_DATE_OPTIONS,
   PlainDateAdapter,
   providePlainDateAdapter,
 } from '../../plain-date';
-import {MAT_TEMPORAL_DATE_FORMATS} from '../../formats/date-formats';
+import {testInjectorProviders} from '../shared/test-providers';
 
 describe('providePlainDateAdapter', () => {
   it('should provide PlainDateAdapter as DateAdapter', () => {
-    const injector = createEnvironmentInjector(
-      [
-        {provide: NgZone, useFactory: () => new NgZone({enableLongStackTrace: false})},
-        ...providePlainDateAdapter(),
-      ],
-      null,
-    );
+    const injector = createEnvironmentInjector(testInjectorProviders(...providePlainDateAdapter()), null);
 
     const adapter = injector.runInContext(() => injector.get(DateAdapter));
 
@@ -26,13 +21,7 @@ describe('providePlainDateAdapter', () => {
   });
 
   it('should provide default date formats', () => {
-    const injector = createEnvironmentInjector(
-      [
-        {provide: NgZone, useFactory: () => new NgZone({enableLongStackTrace: false})},
-        ...providePlainDateAdapter(),
-      ],
-      null,
-    );
+    const injector = createEnvironmentInjector(testInjectorProviders(...providePlainDateAdapter()), null);
 
     expect(injector.get(MAT_DATE_FORMATS)).toBe(MAT_TEMPORAL_DATE_FORMATS);
   });
@@ -46,10 +35,7 @@ describe('providePlainDateAdapter', () => {
       },
     };
     const injector = createEnvironmentInjector(
-      [
-        {provide: NgZone, useFactory: () => new NgZone({enableLongStackTrace: false})},
-        ...providePlainDateAdapter(customFormats, {calendar: 'iso8601', overflow: 'constrain'}),
-      ],
+      testInjectorProviders(...providePlainDateAdapter(customFormats, {calendar: 'iso8601', overflow: 'constrain'})),
       null,
     );
 

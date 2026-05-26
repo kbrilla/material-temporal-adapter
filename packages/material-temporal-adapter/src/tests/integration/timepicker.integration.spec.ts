@@ -1,4 +1,4 @@
-import { createEnvironmentInjector, NgZone } from "@angular/core";
+import { createEnvironmentInjector } from "@angular/core";
 import { DateAdapter } from "@angular/material/core";
 import { describe, expect, it } from "vitest";
 
@@ -6,17 +6,12 @@ import {
   PlainDateTimeAdapter,
   providePlainDateTimeAdapter,
 } from "../../plain-datetime";
+import { testInjectorProviders } from "../shared/test-providers";
 
 describe("timepicker integration", () => {
   it("wires PlainDateTimeAdapter with setTime and time fields", () => {
     const injector = createEnvironmentInjector(
-      [
-        {
-          provide: NgZone,
-          useFactory: () => new NgZone({ enableLongStackTrace: false }),
-        },
-        ...providePlainDateTimeAdapter(),
-      ],
+      testInjectorProviders(...providePlainDateTimeAdapter()),
       null,
     );
     const adapter = injector.runInContext(

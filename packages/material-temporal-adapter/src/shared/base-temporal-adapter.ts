@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { inject } from "@angular/core";
-import { DateAdapter, MAT_DATE_LOCALE } from "@angular/material/core";
+import {Inject, Optional} from '@angular/core';
+import {DateAdapter, MAT_DATE_LOCALE} from '@angular/material/core';
 
-import { ensureTemporalAvailable } from "./polyfill-check";
-import { TemporalBaseOptions } from "./types";
-import { getDefaultLocale, getLocaleFirstDayOfWeek } from "./utils";
+import {ensureTemporalAvailable} from './polyfill-check';
+import {TemporalBaseOptions} from './types';
+import {getDefaultLocale, getLocaleFirstDayOfWeek} from './utils';
 
 type TemporalDateLike = Temporal.PlainDate | Temporal.PlainDateTime | Temporal.ZonedDateTime;
 
@@ -24,16 +24,17 @@ export abstract class BaseTemporalAdapter<
   protected readonly _firstDayOfWeek?: number;
   protected readonly _overflow: "reject" | "constrain";
 
-  protected constructor(options: TemporalBaseOptions) {
+  protected constructor(
+    options: TemporalBaseOptions,
+    @Optional() @Inject(MAT_DATE_LOCALE) locale: string | null,
+  ) {
     super();
     ensureTemporalAvailable();
-    this._calendar = options.calendar ?? "iso8601";
+    this._calendar = options.calendar ?? 'iso8601';
     this._outputCalendar = options.outputCalendar ?? null;
     this._firstDayOfWeek = options.firstDayOfWeek;
-    this._overflow = options.overflow ?? "reject";
-    super.setLocale(
-      inject(MAT_DATE_LOCALE, { optional: true }) ?? getDefaultLocale(),
-    );
+    this._overflow = options.overflow ?? 'reject';
+    super.setLocale(locale ?? getDefaultLocale());
   }
 
   getYear(date: T): number {
