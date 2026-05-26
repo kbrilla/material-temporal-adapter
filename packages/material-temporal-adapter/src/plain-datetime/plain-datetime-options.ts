@@ -10,6 +10,8 @@ import type {TemporalBaseOptions} from '../shared/types';
 
 export interface TemporalPlainDateTimeOptions extends TemporalBaseOptions {}
 
+export type PlainDateTimeOptions = TemporalPlainDateTimeOptions;
+
 export const MAT_TEMPORAL_PLAIN_DATETIME_OPTIONS =
   new InjectionToken<TemporalPlainDateTimeOptions>('MAT_TEMPORAL_PLAIN_DATETIME_OPTIONS', {
     providedIn: 'root',
