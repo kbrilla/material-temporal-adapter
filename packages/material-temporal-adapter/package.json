@@ -1,0 +1,32 @@
+{
+  "name": "@kbrilla/material-temporal-adapter",
+  "version": "0.1.0",
+  "description": "Temporal API DateAdapter for Angular Material datepicker (split adapters)",
+  "keywords": ["angular", "angular-material", "material", "datepicker", "date-adapter", "temporal", "tc39-temporal", "iso8601"],
+  "author": "Krzysztof Brilla",
+  "license": "MIT",
+  "homepage": "https://github.com/kbrilla/material-temporal-adapter#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kbrilla/material-temporal-adapter.git",
+    "directory": "packages/material-temporal-adapter"
+  },
+  "bugs": { "url": "https://github.com/kbrilla/material-temporal-adapter/issues" },
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "build": "ng-packagr -p ng-package.json",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@angular/cdk": ">=18 <21",
+    "@angular/common": ">=18 <21",
+    "@angular/core": ">=18 <21",
+    "@angular/material": ">=18 <21",
+    "tslib": "^2.3.0"
+  },
+  "publishConfig": { "access": "public" }
+}
