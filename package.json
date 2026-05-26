@@ -1,0 +1,23 @@
+{
+  "name": "@kbrilla/temporal-adapter-monorepo",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20", "pnpm": ">=9" },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "pnpm -r --filter './packages/*' build",
+    "test": "pnpm -r --filter './packages/*' test",
+    "test:cov": "pnpm -r --filter './packages/*' test:cov",
+    "lint": "pnpm -r lint",
+    "demo": "pnpm --filter demo storybook",
+    "demo:build": "pnpm --filter demo build-storybook",
+    "demo:e2e": "pnpm --filter demo test:e2e",
+    "format": "prettier --write \"**/*.{ts,html,md,json}\"",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.0",
+    "prettier": "^3.3.0",
+    "typescript": "~5.5.0"
+  }
+}
