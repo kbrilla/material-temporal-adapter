@@ -18,18 +18,32 @@
     "format": "prettier --write \"**/*.{ts,html,md,json}\"",
     "release": "changeset publish"
   },
+  "pnpm": {
+    "overrides": {
+      "@angular/core": "19.2.22",
+      "@angular/common": "19.2.22",
+      "@angular/compiler": "19.2.22",
+      "@angular/compiler-cli": "19.2.22",
+      "@angular/platform-browser": "19.2.22",
+      "@angular/platform-browser-dynamic": "19.2.22",
+      "@angular/forms": "19.2.22",
+      "@angular/cdk": "19.2.19",
+      "@angular/material": "19.2.19"
+    }
+  },
   "devDependencies": {
     "@analogjs/vite-plugin-angular": "^2.5.2",
     "@analogjs/vitest-angular": "^2.5.2",
     "@angular-eslint/eslint-plugin": "^21.4.0",
-    "@angular/cdk": "~19",
-    "@angular/common": "~19",
-    "@angular/compiler": "~19",
-    "@angular/compiler-cli": "~19",
-    "@angular/core": "~19",
-    "@angular/material": "~19",
-    "@angular/platform-browser": "~19",
-    "@angular/platform-browser-dynamic": "~19",
+    "@angular/cdk": "19.2.19",
+    "@angular/common": "19.2.22",
+    "@angular/compiler": "19.2.22",
+    "@angular/compiler-cli": "19.2.22",
+    "@angular/core": "19.2.22",
+    "@angular/forms": "19.2.22",
+    "@angular/material": "19.2.19",
+    "@angular/platform-browser": "19.2.22",
+    "@angular/platform-browser-dynamic": "19.2.22",
     "@changesets/cli": "^2.27.0",
     "@js-temporal/polyfill": "^0.5.1",
     "@typescript-eslint/eslint-plugin": "^8.60.0",
@@ -46,6 +60,6 @@
     "tslib": "^2.8.1",
     "typescript": "~5.5.4",
     "vitest": "^2",
-    "zone.js": "^0.16.2"
+    "zone.js": "~0.15.0"
   }
 }

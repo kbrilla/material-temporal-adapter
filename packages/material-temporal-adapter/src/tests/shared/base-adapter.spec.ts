@@ -1,6 +1,5 @@
-import { Injectable } from "@angular/core";
-import { TestBed } from "@angular/core/testing";
-import { DateAdapter } from "@angular/material/core";
+import { createEnvironmentInjector, NgZone } from "@angular/core";
+import { MAT_DATE_LOCALE } from "@angular/material/core";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { BaseTemporalAdapter } from "../../shared/base-temporal-adapter";
@@ -9,7 +8,6 @@ import {
   isTemporalInvalid,
 } from "../../shared/invalid";
 
-@Injectable()
 class TestPlainDateAdapter extends BaseTemporalAdapter<Temporal.PlainDate> {
   constructor() {
     super({ calendar: "iso8601", overflow: "reject" });
@@ -70,9 +68,14 @@ describe("BaseTemporalAdapter", () => {
   let adapter: TestPlainDateAdapter;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [TestPlainDateAdapter] });
-    adapter = TestBed.inject(TestPlainDateAdapter);
-    adapter.setLocale("en-US");
+    const injector = createEnvironmentInjector(
+      [
+        { provide: NgZone, useFactory: () => new NgZone({ enableLongStackTrace: false }) },
+        { provide: MAT_DATE_LOCALE, useValue: "en-US" },
+      ],
+      null,
+    );
+    adapter = injector.runInContext(() => new TestPlainDateAdapter());
   });
 
   it("getMonth returns 0-indexed month", () => {
