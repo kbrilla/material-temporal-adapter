@@ -1,7 +1,7 @@
 import {expect, userEvent, within} from '@storybook/test';
-import {moduleMetadata} from '@storybook/angular';
 import type {Meta, StoryObj} from '@storybook/angular';
 
+import {CONFIG, configBlock} from '../shared/config-snippets';
 import {
   MaterialExamplesDemoComponent,
   TemporalDateRangeDemoComponent,
@@ -23,8 +23,13 @@ const meta: Meta<TemporalDateRangeDemoComponent> = {
   parameters: {
     docs: {
       description: {
-        component:
-          'Migrated from the reference date range and Material examples stories using split providers.',
+        component: [
+          'Reactive forms with `mat-date-range-input` and `Temporal.PlainDate` start/end values.',
+          '',
+          configBlock('Provider', CONFIG.plainDateDefault),
+          '',
+          'See **Docs → Forms & Validation** for validation patterns.',
+        ].join('\n'),
       },
     },
   },
@@ -52,9 +57,13 @@ export const SelectRangeInteraction: Story = {
 
 export const MaterialExamples: StoryObj<MaterialExamplesDemoComponent> = {
   name: 'Material Examples',
+  decorators: [withPlainDateAdapter()],
   render: materialExamplesRender,
   args: {
     showTimepicker: false,
+  },
+  parameters: {
+    docs: {description: {story: configBlock('Provider', CONFIG.plainDateDefault)}},
   },
 };
 
@@ -65,10 +74,14 @@ export const MaterialExamplesWithTime: StoryObj<MaterialExamplesDemoComponent> =
   args: {
     showTimepicker: true,
   },
+  parameters: {
+    docs: {description: {story: configBlock('Provider', CONFIG.plainDateTimeDefault)}},
+  },
 };
 
 export const DatepickerYearView: StoryObj<TemporalDatepickerDemoComponent> = {
   name: 'Datepicker Year View',
+  decorators: [withPlainDateAdapter()],
   render: (args) => ({
     props: args,
     moduleMetadata: {imports: [TemporalDatepickerDemoComponent]},
@@ -87,10 +100,14 @@ export const DatepickerYearView: StoryObj<TemporalDatepickerDemoComponent> = {
     initialValue: '2026-05-26',
     startView: 'year',
   },
+  parameters: {
+    docs: {description: {story: configBlock('Provider', CONFIG.plainDateDefault)}},
+  },
 };
 
 export const Playground: StoryObj<TemporalPlaygroundDemoComponent> = {
   name: 'Playground',
+  decorators: [withPlainDateAdapter()],
   render: (args) => ({
     props: args,
     moduleMetadata: {imports: [TemporalPlaygroundDemoComponent]},
@@ -99,5 +116,8 @@ export const Playground: StoryObj<TemporalPlaygroundDemoComponent> = {
   args: {
     label: 'PlainDate',
     showTimepicker: false,
+  },
+  parameters: {
+    docs: {description: {story: configBlock('Provider', CONFIG.plainDateDefault)}},
   },
 };

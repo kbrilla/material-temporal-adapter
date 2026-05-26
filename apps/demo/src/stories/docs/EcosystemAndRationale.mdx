@@ -1,0 +1,42 @@
+import {Meta} from '@storybook/blocks';
+
+<Meta title="Docs/Ecosystem & Rationale" />
+
+# Ecosystem and design rationale
+
+## This package vs helpers
+
+`@kbrilla/material-temporal-adapter` implements Angular Material **`DateAdapter`** only.
+
+| Layer | This repo? | Elsewhere |
+| --- | --- | --- |
+| Datepicker / timepicker integration | **Yes** | — |
+| Invalid picker values (`isTemporalInvalid`) | **Yes** | Material-specific |
+| Token `DD/MM/YYYY` format | No | [@formkit/tempo](https://tempo.formkit.com/) |
+| `startOf`, `isBetween`, `formatRelative` | No | [temporal-kit](https://github.com/KristjanESPERANTO/temporal-kit) |
+
+Full guide: [docs/temporal-ecosystem.md](https://github.com/kbrilla/material-temporal-adapter/blob/main/docs/temporal-ecosystem.md)
+
+## Invalid sentinels — why not `null`?
+
+When the user types invalid text, Material keeps a **non-empty invalid value** on the control — the same contract as `NativeDateAdapter` using `new Date(NaN)`.
+
+| Value | Meaning |
+| --- | --- |
+| `null` | Empty — cleared field |
+| Sentinel (`_invalid: true`, `NaN` fields) | Invalid input — show `mat-error` |
+| Real `Temporal.*` | Valid |
+
+Temporal has no built-in “invalid PlainDate”. Adapters use a branded object cast to `Temporal.PlainDate` so `isDateInstance()` stays true and `isValid()` is false.
+
+```typescript
+import {isTemporalInvalid} from '@kbrilla/material-temporal-adapter';
+
+if (value !== null && isTemporalInvalid(value)) {
+  // not empty — validation error
+}
+```
+
+**Deep dive:** [docs/design-rationale.md — Invalid sentinels](https://github.com/kbrilla/material-temporal-adapter/blob/main/docs/design-rationale.md#invalid-sentinels-the-ugly-objects)
+
+See **Invalid Handling/** stories and **Docs → Forms & Validation**.

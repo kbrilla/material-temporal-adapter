@@ -40,7 +40,7 @@ pnpm --filter @kbrilla/material-temporal-adapter test
 
 - `packages/material-temporal-adapter/` — publishable library
 - `apps/demo/` — Storybook examples (not published to npm)
-- `docs/` — behavior, migration, calendar, SSR guides
+- `docs/` — quickstart, usage, behavior, migration, calendar, SSR guides
 
 ## Code style
 

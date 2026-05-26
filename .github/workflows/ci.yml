@@ -34,4 +34,6 @@ jobs:
         run: pnpm test
 
       - name: Build Storybook demo
+        env:
+          STORYBOOK_BASE_PATH: /material-temporal-adapter
         run: pnpm demo:build

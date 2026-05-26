@@ -4,6 +4,21 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * Invalid date sentinels for Angular Material `DateAdapter`.
+ *
+ * **Why these exist:** Material requires `invalid(): D` — a value that is not valid but still
+ * `isDateInstance()` — parallel to `NativeDateAdapter`’s `new Date(NaN)`. Temporal has no
+ * invalid `PlainDate` in the spec, so adapters use branded plain objects cast to `Temporal.*`.
+ *
+ * **Why not `null`:** `null` means *empty* (cleared field). Invalid user input is *non-empty*;
+ * conflating the two breaks required-field validation and error styling while typing.
+ *
+ * **App code:** use {@link isTemporalInvalid} or `DateAdapter.isValid()`. Never persist sentinels.
+ *
+ * @see https://github.com/kbrilla/material-temporal-adapter/blob/main/docs/design-rationale.md#invalid-sentinels-the-ugly-objects
+ */
+
 import type {TemporalCalendarId} from './types';
 
 interface TemporalInvalidSentinel {
@@ -48,6 +63,7 @@ const INVALID_TIME_FIELDS = {
   nanosecond: Number.NaN,
 } as const;
 
+/** @internal Used by adapters — do not construct in application code. */
 export function createInvalidPlainDate(calendarId: TemporalCalendarId): InvalidPlainDate {
   return {
     _invalid: true,
@@ -56,6 +72,7 @@ export function createInvalidPlainDate(calendarId: TemporalCalendarId): InvalidP
   };
 }
 
+/** @internal Used by adapters — do not construct in application code. */
 export function createInvalidPlainDateTime(calendarId: TemporalCalendarId): InvalidPlainDateTime {
   return {
     ...createInvalidPlainDate(calendarId),
@@ -63,6 +80,7 @@ export function createInvalidPlainDateTime(calendarId: TemporalCalendarId): Inva
   };
 }
 
+/** @internal Used by adapters — do not construct in application code. */
 export function createInvalidZonedDateTime(
   calendarId: TemporalCalendarId,
   timeZoneId: string,
@@ -74,6 +92,11 @@ export function createInvalidZonedDateTime(
   };
 }
 
+/**
+ * Type guard for Material adapter invalid sentinels (not real `Temporal.*` instances).
+ *
+ * Returns `false` for `null` — empty controls are not invalid sentinels.
+ */
 export function isTemporalInvalid(value: unknown): value is TemporalInvalidSentinel {
   return typeof value === 'object' && value !== null && '_invalid' in value && value._invalid === true;
 }

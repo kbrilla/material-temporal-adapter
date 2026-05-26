@@ -1,7 +1,7 @@
 import {expect, within} from '@storybook/test';
-import {moduleMetadata} from '@storybook/angular';
 import type {Meta, StoryObj} from '@storybook/angular';
 
+import {CONFIG, configBlock} from '../shared/config-snippets';
 import {
   TemporalCalendarArithmeticComponent,
   TemporalDateRangeDemoComponent,
@@ -22,8 +22,11 @@ const meta: Meta<TemporalTimepickerDemoComponent> = {
   parameters: {
     docs: {
       description: {
-        component:
-          'Migrated from the reference timepicker demo and configured with `providePlainDateTimeAdapter()`.',
+        component: [
+          'Material timepicker with `Temporal.PlainDateTime` values. Requires `PlainDateTimeAdapter`.',
+          '',
+          configBlock('Default provider', CONFIG.plainDateTimeDefault),
+        ].join('\n'),
       },
     },
   },
@@ -67,6 +70,18 @@ export const DatepickerDateTimeMode: StoryObj<TemporalDatepickerDemoComponent> =
     subtitle: 'Date selections are represented as Temporal.PlainDateTime values',
     initialValue: '2026-05-26T10:30:00',
   },
+  parameters: {
+    docs: {
+      description: {
+        story: [
+          configBlock('Provider', CONFIG.plainDateTimeDefault),
+          '',
+          'FormControl type: `Temporal.PlainDateTime | null`',
+          'Initial value: `2026-05-26T10:30:00`',
+        ].join('\n'),
+      },
+    },
+  },
 };
 
 export const CalendarArithmetic: StoryObj<TemporalCalendarArithmeticComponent> = {
@@ -83,6 +98,13 @@ export const DateRange: StoryObj<TemporalDateRangeDemoComponent> = {
     moduleMetadata: {imports: [TemporalDateRangeDemoComponent]},
     template: '<demo-temporal-date-range />',
   }),
+  parameters: {
+    docs: {
+      description: {
+        story: configBlock('Provider', CONFIG.plainDateTimeDefault),
+      },
+    },
+  },
 };
 
 export const Playground: StoryObj<TemporalPlaygroundDemoComponent> = {

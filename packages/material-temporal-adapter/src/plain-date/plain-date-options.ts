@@ -8,6 +8,7 @@ import {InjectionToken} from '@angular/core';
 
 import type {TemporalBaseOptions} from '../shared/types';
 
+/** Options for {@link PlainDateAdapter} and `providePlainDateAdapter()`. @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/PlainDate MDN: Temporal.PlainDate} */
 export interface TemporalPlainDateOptions extends TemporalBaseOptions {}
 
 export type PlainDateOptions = TemporalPlainDateOptions;

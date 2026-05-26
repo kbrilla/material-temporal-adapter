@@ -1,0 +1,98 @@
+import {Meta} from '@storybook/blocks';
+
+<Meta title="Docs/Forms & Validation" />
+
+# Forms and validation
+
+## Date range (PlainDate)
+
+**Form Integration/Date Range → Date Range**
+
+```typescript
+...providePlainDateAdapter(),
+
+// FormGroup with start/end FormControl<Temporal.PlainDate | null>
+```
+
+Template uses `mat-date-range-input` + `mat-date-range-picker`.
+
+## Material examples panel
+
+**Form Integration → Material Examples**
+
+```typescript
+...providePlainDateAdapter(),
+```
+
+**Material Examples with Time**
+
+```typescript
+...providePlainDateTimeAdapter(),
+```
+
+Set `[showTimepicker]="true"` on the demo component.
+
+## Playground
+
+**Form Integration → Playground**
+
+```typescript
+...providePlainDateAdapter(),
+```
+
+## Invalid sentinel detection
+
+Material may set an **invalid sentinel** (not `null`) when parsing fails. That is **required** by Material’s `DateAdapter` contract — same pattern as `new Date(NaN)` in `NativeDateAdapter`. It is **not** the same as an empty field (`null`).
+
+| Value | Meaning |
+| --- | --- |
+| `null` | Empty |
+| Sentinel | Invalid but non-empty |
+| Real `Temporal.*` | Valid |
+
+```typescript
+import {isTemporalInvalid} from '@kbrilla/material-temporal-adapter';
+
+if (value !== null && isTemporalInvalid(value)) {
+  // show validation error — sentinel has NaN fields and _invalid: true
+}
+```
+
+**Why sentinels exist:** [docs/design-rationale.md](https://github.com/kbrilla/material-temporal-adapter/blob/main/docs/design-rationale.md#invalid-sentinels-the-ugly-objects)
+
+**Invalid Handling/Edge Cases** stories use:
+
+```typescript
+...providePlainDateAdapter(undefined, {
+  calendar: 'iso8601',
+  overflow: 'constrain',
+}),
+```
+
+For zoned invalid matrix (**Matrix: Zoned Reject**):
+
+```typescript
+...provideZonedDateTimeAdapter({
+  timezone: 'America/New_York',
+  disambiguation: 'reject',
+}),
+```
+
+## Custom validator example
+
+```typescript
+import {AbstractControl, ValidationErrors} from '@angular/forms';
+import {isTemporalInvalid} from '@kbrilla/material-temporal-adapter';
+
+function temporalDateValidator(control: AbstractControl): ValidationErrors | null {
+  const v = control.value;
+  if (v !== null && isTemporalInvalid(v)) {
+    return {invalidDate: true};
+  }
+  return null;
+}
+```
+
+Production patterns: [docs/usage.md](https://github.com/kbrilla/material-temporal-adapter/blob/main/docs/usage.md)
+
+See **Form Integration/** and **Invalid Handling/** stories.

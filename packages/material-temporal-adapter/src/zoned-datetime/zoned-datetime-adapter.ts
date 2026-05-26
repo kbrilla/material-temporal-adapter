@@ -18,7 +18,8 @@ interface ZonedFromOptions {
 }
 
 /**
- * DateAdapter implementation for `Temporal.ZonedDateTime`.
+ * DateAdapter implementation for {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/ZonedDateTime Temporal.ZonedDateTime}.
+ * Requires explicit `timezone` in provider options ({@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/ZonedDateTime/timeZoneId timeZoneId}).
  */
 @Injectable()
 export class ZonedDateTimeAdapter extends BaseTemporalAdapter<Temporal.ZonedDateTime> {

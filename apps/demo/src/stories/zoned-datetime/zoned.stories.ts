@@ -1,7 +1,7 @@
 import {expect, within} from '@storybook/test';
-import {moduleMetadata} from '@storybook/angular';
 import type {Meta, StoryObj} from '@storybook/angular';
 
+import {CONFIG, configBlock} from '../shared/config-snippets';
 import {
   AdapterExplorerDemoComponent,
   TemporalDateRangeDemoComponent,
@@ -23,8 +23,11 @@ const meta: Meta<TemporalDatepickerDemoComponent> = {
   parameters: {
     docs: {
       description: {
-        component:
-          'Migrated from zoned reference stories and configured with `provideZonedDateTimeAdapter()`.',
+        component: [
+          'Material datepicker with `Temporal.ZonedDateTime` values. **`timezone` is required.**',
+          '',
+          configBlock('Default provider (UTC)', CONFIG.zonedUtc),
+        ].join('\n'),
       },
     },
   },
@@ -44,6 +47,13 @@ export const NewYorkDatepicker: Story = {
   args: {
     subtitle: 'ZonedDateTime values in America/New_York',
     initialValue: '2026-05-26T10:30:00-04:00[America/New_York]',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: configBlock('Provider', CONFIG.zonedNewYork),
+      },
+    },
   },
 };
 
@@ -89,7 +99,7 @@ export const DSTGapReject: StoryObj<AdapterExplorerDemoComponent> = {
   parameters: {
     docs: {
       description: {
-        story: 'Configured to reject invalid local times during DST spring-forward gaps.',
+        story: configBlock('Provider', CONFIG.zonedDstReject),
       },
     },
   },
@@ -107,6 +117,13 @@ export const DSTGapCompatible: StoryObj<AdapterExplorerDemoComponent> = {
     moduleMetadata: {imports: [AdapterExplorerDemoComponent]},
     template: '<demo-adapter-explorer />',
   }),
+  parameters: {
+    docs: {
+      description: {
+        story: configBlock('Provider', CONFIG.zonedDstCompatible),
+      },
+    },
+  },
 };
 
 export const Playground: StoryObj<TemporalPlaygroundDemoComponent> = {

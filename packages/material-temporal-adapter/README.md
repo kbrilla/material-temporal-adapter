@@ -2,53 +2,94 @@
 
 Temporal API `DateAdapter` implementations for Angular Material datepicker, timepicker, and date-range controls.
 
-> **Community-maintained.** This package is **not** part of Angular or the Angular Material team. It is extracted from [angular/components#32668](https://github.com/angular/components/pull/32668) and published independently under the MIT license. For framework integration, follow the upstream PR; for production use today, install this package.
+> **Community-maintained.** Not part of Angular or the Angular Material team. Extracted from [angular/components#32668](https://github.com/angular/components/pull/32668). MIT license.
 
 ## Requirements
 
 - Angular Material **18–20** (`@angular/material`, `@angular/cdk`, `@angular/core`)
-- A **Temporal polyfill** loaded before any adapter is constructed (see Quick start)
-- Node **20+** for local development in this monorepo
+- A **Temporal polyfill** loaded before any adapter is constructed
+- Node **20+** for development in this monorepo
 
 ## Quick start
 
-Install the adapter and a polyfill (you bring your own — the package does not bundle Temporal):
+### Install
 
 ```bash
 pnpm add @kbrilla/material-temporal-adapter temporal-polyfill
 ```
 
-Load the polyfill **before** bootstrapping Angular (order matters for SSR — see [docs/ssr-considerations.md](../../docs/ssr-considerations.md)):
+### Polyfill (required, first import)
 
 ```typescript
+// main.ts
 import 'temporal-polyfill/global';
+
+import {bootstrapApplication} from '@angular/platform-browser';
+import {appConfig} from './app/app.config';
+import {AppComponent} from './app/app.component';
+
+bootstrapApplication(AppComponent, appConfig);
 ```
 
-Register a split adapter in `bootstrapApplication` (or a route/environment `providers` array):
+### Register an adapter
 
 ```typescript
-import {bootstrapApplication} from '@angular/platform-browser';
-import {providePlainDateAdapter, isTemporalInvalid} from '@kbrilla/material-temporal-adapter';
+// app.config.ts
+import {ApplicationConfig} from '@angular/core';
+import {provideAnimationsAsync} from '@angular/platform-browser/animations/async';
+import {providePlainDateAdapter} from '@kbrilla/material-temporal-adapter';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideAnimationsAsync(),
+    providePlainDateAdapter(),
+  ],
+};
+```
+
+### Component + template
+
+```typescript
+import {Component} from '@angular/core';
 import {FormControl, ReactiveFormsModule} from '@angular/forms';
 import {MatDatepickerModule} from '@angular/material/datepicker';
-
-bootstrapApplication(AppComponent, {
-  providers: [providePlainDateAdapter()],
-});
-```
-
-Use `Temporal.PlainDate` (or the adapter type you chose) in form controls and templates. Check invalid picker values with `isTemporalInvalid()`:
-
-```typescript
+import {MatFormFieldModule} from '@angular/material/form-field';
+import {MatInputModule} from '@angular/material/input';
 import {isTemporalInvalid} from '@kbrilla/material-temporal-adapter';
 
-const value = dateControl.value;
-if (isTemporalInvalid(value)) {
-  // User entered an unparseable or out-of-range date; sentinel has NaN fields.
+@Component({
+  selector: 'app-root',
+  imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatDatepickerModule],
+  template: `
+    <mat-form-field>
+      <mat-label>Date</mat-label>
+      <input matInput [matDatepicker]="picker" [formControl]="date" />
+      <mat-datepicker-toggle matIconSuffix [for]="picker" />
+      <mat-datepicker #picker />
+    </mat-form-field>
+  `,
+})
+export class AppComponent {
+  date = new FormControl<Temporal.PlainDate | null>(null);
+
+  isInvalid(): boolean {
+    const v = this.date.value;
+    return v !== null && isTemporalInvalid(v);
+  }
 }
 ```
 
-### Date + time (no time zone)
+Extended guides: [docs/quickstart.md](../../docs/quickstart.md) · [docs/usage.md](../../docs/usage.md)
+
+## Adapters
+
+| Adapter | Type | Provider | Notes |
+| --- | --- | --- | --- |
+| `PlainDateAdapter` | [`Temporal.PlainDate`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/PlainDate) | `providePlainDateAdapter(formats?, options?)` | No time; `setTime` throws |
+| `PlainDateTimeAdapter` | [`Temporal.PlainDateTime`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/PlainDateTime) | `providePlainDateTimeAdapter(formats?, options?)` | Timepicker supported |
+| `ZonedDateTimeAdapter` | [`Temporal.ZonedDateTime`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/ZonedDateTime) | `provideZonedDateTimeAdapter(options, formats?)` | **`timezone` required** |
+
+### Plain date + time (no zone)
 
 ```typescript
 import {providePlainDateTimeAdapter} from '@kbrilla/material-temporal-adapter';
@@ -56,9 +97,7 @@ import {providePlainDateTimeAdapter} from '@kbrilla/material-temporal-adapter';
 providers: [providePlainDateTimeAdapter()],
 ```
 
-### Date + time with time zone
-
-`timezone` is **required** — there is no system-time-zone fallback.
+### Zoned date + time
 
 ```typescript
 import {provideZonedDateTimeAdapter} from '@kbrilla/material-temporal-adapter';
@@ -72,6 +111,8 @@ providers: [
 ],
 ```
 
+There is **no** system-time-zone fallback. Pass `'UTC'` explicitly when needed.
+
 ### Non-Gregorian calendar
 
 ```typescript
@@ -81,52 +122,93 @@ providePlainDateAdapter(undefined, {
 }),
 ```
 
-See [docs/calendar-support.md](../../docs/calendar-support.md) for tested calendars.
+### Custom formats
 
-## Adapter comparison
+```typescript
+import {MAT_TEMPORAL_DATE_FORMATS, providePlainDateAdapter} from '@kbrilla/material-temporal-adapter';
 
-| Adapter | Temporal type | Time | Time zone | Provider | Default formats token |
-| --- | --- | --- | --- | --- | --- |
-| `PlainDateAdapter` | `Temporal.PlainDate` | No (`setTime` throws) | N/A | `providePlainDateAdapter(formats?, options?)` | `MAT_TEMPORAL_DATE_FORMATS` |
-| `PlainDateTimeAdapter` | `Temporal.PlainDateTime` | Yes | N/A | `providePlainDateTimeAdapter(formats?, options?)` | `MAT_TEMPORAL_DATETIME_FORMATS` |
-| `ZonedDateTimeAdapter` | `Temporal.ZonedDateTime` | Yes | **Required** `timezone` | `provideZonedDateTimeAdapter(options, formats?)` | `MAT_TEMPORAL_ZONED_FORMATS` |
+providePlainDateAdapter({
+  ...MAT_TEMPORAL_DATE_FORMATS,
+  display: {
+    ...MAT_TEMPORAL_DATE_FORMATS.display,
+    dateInput: {year: 'numeric', month: 'long', day: 'numeric'},
+  },
+}),
+```
 
-**Removed from the upstream PR:** unified `TemporalDateAdapter`, hybrid `PlainTemporalAdapter`, `MatTemporalModule`, and shared `MAT_BASE_TEMPORAL_OPTIONS`. Use exactly one split adapter per application (or per lazy route via `providers`).
+Default format tokens: `MAT_TEMPORAL_DATE_FORMATS`, `MAT_TEMPORAL_DATETIME_FORMATS`, `MAT_TEMPORAL_ZONED_FORMATS`.
 
-## Behavior notes (summary)
+## Options reference
 
-| Topic | Default / behavior |
+Shared options (`PlainDateOptions`, `PlainDateTimeOptions`, `ZonedDateTimeOptions`):
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `calendar` | `'iso8601'` | Storage calendar id |
+| `outputCalendar` | same as `calendar` | Display calendar via `withCalendar()` |
+| `firstDayOfWeek` | from locale | `0` = Sunday … `6` = Saturday |
+| `overflow` | `'reject'` | `'constrain'` for lenient entry |
+
+Zoned-only:
+
+| Option | Description |
 | --- | --- |
-| Overflow | `overflow: 'reject'` — invalid calendar arithmetic throws in dev mode or returns an invalid sentinel |
-| Invalid values | `isTemporalInvalid()` detects sentinel objects with `_invalid: true` and `NaN` fields |
-| Polyfill | BYO; constructor calls `ensureTemporalAvailable()` and throws if `globalThis.Temporal` is missing |
-| Zoned time zone | Required in `provideZonedDateTimeAdapter({ timezone: '...' })` — no `Temporal.Now.timeZoneId()` default |
-| Output calendar | `outputCalendar` formats via `withCalendar()`; storage uses `calendar` |
-| First day of week | Locale-derived unless `firstDayOfWeek` is set in options |
-| Zoned DST / offset | Optional `disambiguation` and `offset`; optional `rounding` on format/ISO output |
+| `timezone` | **Required** IANA zone |
+| `disambiguation` | DST gap/overlap: `'compatible'`, `'earlier'`, `'later'`, `'reject'` |
+| `offset` | `'use'`, `'ignore'`, `'reject'`, `'prefer'` |
+| `rounding` | `{ smallestUnit, roundingIncrement?, roundingMode? }` |
 
-Details: [docs/behavior-notes.md](../../docs/behavior-notes.md).
+## Invalid values
 
-## SSR
+Material requires a non-`null` **invalid** value when parse fails (same idea as `NativeDateAdapter`’s `new Date(NaN)`). Temporal has no invalid `PlainDate` in the spec, so adapters use branded sentinels — **not the same as empty (`null`)**.
 
-Import the polyfill in `main.server.ts` (or equivalent) before adapter providers. Pass an explicit `timezone` for zoned adapters on the server. See [docs/ssr-considerations.md](../../docs/ssr-considerations.md).
+```typescript
+import {isTemporalInvalid} from '@kbrilla/material-temporal-adapter';
 
-## Migrating from the Angular PR
+if (control.value !== null && isTemporalInvalid(control.value)) {
+  // invalid sentinel — NaN fields, _invalid: true
+}
+```
 
-If you prototyped against `@angular/material-temporal-adapter` or the PR branch, see [docs/migration-from-pr.md](../../docs/migration-from-pr.md).
+| Value | Meaning |
+| --- | --- |
+| `null` | Empty field |
+| Sentinel | Invalid but non-empty input |
+| Real `Temporal.*` | Valid |
+
+**Why:** [docs/design-rationale.md](../../docs/design-rationale.md#invalid-sentinels-the-ugly-objects) · **Behavior:** [docs/behavior-notes.md](../../docs/behavior-notes.md#invalid-sentinel)
+
+## Temporal ecosystem (not this package)
+
+For token formatting, relative dates, and app helpers see [docs/temporal-ecosystem.md](../../docs/temporal-ecosystem.md). `isTemporalInvalid()` stays here — it is Material/adapter-specific, not a generic Temporal utility.
+
+## Removed from upstream PR
+
+Do not look for these — use split adapters instead:
+
+- `TemporalDateAdapter`, `provideTemporalDateAdapter()`
+- `PlainTemporalAdapter`, `providePlainTemporalAdapter()`
+- `MatTemporalModule`, `MAT_BASE_TEMPORAL_OPTIONS`
+
+Upstream PR for context: [angular/components#32668](https://github.com/angular/components/pull/32668).
 
 ## Documentation
 
 | Doc | Description |
 | --- | --- |
-| [behavior-notes.md](../../docs/behavior-notes.md) | Overflow, rounding, invalid sentinel, locale, `withCalendar` |
-| [calendar-support.md](../../docs/calendar-support.md) | Tested calendars matrix |
-| [ssr-considerations.md](../../docs/ssr-considerations.md) | Polyfill order, hydration, explicit timezone |
-| [migration-from-pr.md](../../docs/migration-from-pr.md) | PR → community package mapping |
+| [docs/quickstart.md](../../docs/quickstart.md) | Step-by-step setup |
+| [docs/usage.md](../../docs/usage.md) | Forms, ranges, timepicker, serialization |
+| [docs/behavior-notes.md](../../docs/behavior-notes.md) | Overflow, rounding, locale |
+| [docs/design-rationale.md](../../docs/design-rationale.md) | Why sentinels, split adapters, scope |
+| [docs/temporal-ecosystem.md](../../docs/temporal-ecosystem.md) | temporal-kit, tempo, Day.js gaps |
+| [docs/calendar-support.md](../../docs/calendar-support.md) | Calendar matrix |
+| [docs/ssr-considerations.md](../../docs/ssr-considerations.md) | Server rendering |
 
 ## Demo
 
-Storybook examples live in this monorepo under `apps/demo`. **Live demo:** https://kbrilla.github.io/material-temporal-adapter/
+Live Storybook with exact provider configs per story:
+
+**https://kbrilla.github.io/material-temporal-adapter/**
 
 ## License
 

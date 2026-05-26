@@ -1,0 +1,65 @@
+import {Meta} from '@storybook/blocks';
+
+<Meta title="Docs/PlainDateTime Adapter" />
+
+# PlainDateTime adapter
+
+Stores **`Temporal.PlainDateTime`** — wall-clock date and time without a time zone.
+
+Required for Material **timepicker** when you do not need IANA time zones.
+
+## Default configuration
+
+**PlainDateTime/Timepicker → Basic Timepicker**
+
+```typescript
+import {providePlainDateTimeAdapter} from '@kbrilla/material-temporal-adapter';
+
+providers: [
+  ...providePlainDateTimeAdapter(),
+],
+```
+
+Defaults: `calendar: 'iso8601'`, `overflow: 'reject'`.
+
+## Datepicker with date-time values
+
+**PlainDateTime/Timepicker → Datepicker with PlainDateTime**
+
+Same provider; initial value includes time:
+
+```typescript
+...providePlainDateTimeAdapter(),
+
+// FormControl<Temporal.PlainDateTime | null>
+// initialValue: '2026-05-26T10:30:00'
+```
+
+## Hebrew calendar
+
+**Calendars/Calendar Arithmetic → Matrix: PlainDateTime Hebrew**
+
+```typescript
+...providePlainDateTimeAdapter(undefined, {
+  calendar: 'hebrew',
+}),
+```
+
+## Form control type
+
+```typescript
+dateTime = new FormControl<Temporal.PlainDateTime | null>(null);
+```
+
+## Invalid handling matrix
+
+**Invalid Handling → Matrix: PlainDateTime Invalids**
+
+```typescript
+...providePlainDateTimeAdapter(undefined, {
+  calendar: 'iso8601',
+  overflow: 'constrain',
+}),
+```
+
+See **PlainDateTime/** and **Form Integration/** stories.

@@ -1,0 +1,121 @@
+import {Meta} from '@storybook/blocks';
+
+<Meta title="Docs/Storybook Setup" />
+
+# Storybook setup
+
+This page documents how **this demo** wires providers. For production Angular apps, use
+[docs/quickstart.md](https://github.com/kbrilla/material-temporal-adapter/blob/main/docs/quickstart.md)
+instead — no Storybook decorators required.
+
+## Global preview (all stories)
+
+`.storybook/preview.ts` loads the polyfill and a default PlainDate adapter:
+
+```typescript
+import 'temporal-polyfill/global';
+import {provideZoneChangeDetection} from '@angular/core';
+import {MAT_DATE_LOCALE} from '@angular/material/core';
+import {provideAnimationsAsync} from '@angular/platform-browser/animations/async';
+import {applicationConfig} from '@storybook/angular';
+import {providePlainDateAdapter} from '@kbrilla/material-temporal-adapter';
+
+const preview = {
+  decorators: [
+    applicationConfig({
+      providers: [
+        provideZoneChangeDetection({eventCoalescing: true}),
+        provideAnimationsAsync(),
+        ...providePlainDateAdapter(),
+        {provide: MAT_DATE_LOCALE, useValue: 'en-US'},
+      ],
+    }),
+  ],
+};
+```
+
+Individual stories override this with their own `decorators: [with*Adapter(...)]`.
+
+## Story decorator helpers
+
+`apps/demo/src/stories/shared/story-providers.ts`:
+
+```typescript
+import {provideZoneChangeDetection} from '@angular/core';
+import {MAT_DATE_LOCALE} from '@angular/material/core';
+import {provideAnimationsAsync} from '@angular/platform-browser/animations/async';
+import {applicationConfig} from '@storybook/angular';
+import {
+  providePlainDateAdapter,
+  providePlainDateTimeAdapter,
+  provideZonedDateTimeAdapter,
+} from '@kbrilla/material-temporal-adapter';
+
+function storyBootstrapProviders(adapterProviders, locale = 'en-US') {
+  return [
+    provideZoneChangeDetection({eventCoalescing: true}),
+    provideAnimationsAsync(),
+    ...adapterProviders,
+    {provide: MAT_DATE_LOCALE, useValue: locale},
+  ];
+}
+
+export function withPlainDateAdapter(options?, locale = 'en-US') {
+  return applicationConfig({
+    providers: storyBootstrapProviders(providePlainDateAdapter(undefined, options), locale),
+  });
+}
+
+export function withPlainDateTimeAdapter(options?, locale = 'en-US') {
+  return applicationConfig({
+    providers: storyBootstrapProviders(
+      providePlainDateTimeAdapter(undefined, options),
+      locale,
+    ),
+  });
+}
+
+export function withZonedDateTimeAdapter(options, locale = 'en-US') {
+  return applicationConfig({
+    providers: storyBootstrapProviders(provideZonedDateTimeAdapter(options), locale),
+  });
+}
+```
+
+## Usage in a story file
+
+```typescript
+import {withPlainDateAdapter} from '../shared/story-providers';
+
+const meta = {
+  title: 'PlainDate/Datepicker',
+  decorators: [withPlainDateAdapter()],
+};
+
+export const JapaneseCalendar = {
+  decorators: [
+    withPlainDateAdapter({calendar: 'japanese'}),
+  ],
+};
+```
+
+Equivalent production `app.config.ts` (no Storybook imports):
+
+```typescript
+providers: [
+  provideAnimationsAsync(),
+  ...providePlainDateAdapter(undefined, {calendar: 'japanese'}),
+  {provide: MAT_DATE_LOCALE, useValue: 'en-US'},
+],
+```
+
+## Why these extra providers?
+
+| Provider | Purpose in Storybook |
+| --- | --- |
+| `provideZoneChangeDetection()` | Angular 19+ standalone bootstrap |
+| `provideAnimationsAsync()` | Material datepicker overlay animations |
+| `MAT_DATE_LOCALE` | Month/weekday labels |
+| `provide*Adapter()` | Temporal `DateAdapter` for Material controls |
+
+Missing `DateAdapter` causes: `NullInjectorError: No provider for DateAdapter!`

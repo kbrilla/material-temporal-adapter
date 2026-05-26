@@ -11,7 +11,7 @@ import {createInvalidPlainDate, isTemporalInvalid} from '../shared/invalid';
 import {MAT_TEMPORAL_PLAIN_DATE_OPTIONS} from './plain-date-options';
 
 /**
- * DateAdapter implementation for `Temporal.PlainDate`.
+ * DateAdapter implementation for {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/PlainDate Temporal.PlainDate}.
  */
 @Injectable()
 export class PlainDateAdapter extends BaseTemporalAdapter<Temporal.PlainDate> {

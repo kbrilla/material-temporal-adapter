@@ -1,0 +1,99 @@
+import {Meta} from '@storybook/blocks';
+
+<Meta title="Docs/ZonedDateTime Adapter" />
+
+# ZonedDateTime adapter
+
+Stores **`Temporal.ZonedDateTime`** with an explicit IANA time zone.
+
+## Required: timezone
+
+There is **no** system-time-zone fallback. Every config must include `timezone`.
+
+## UTC (default zoned stories)
+
+**ZonedDateTime/Datepicker → UTC Datepicker**
+
+```typescript
+import {provideZonedDateTimeAdapter} from '@kbrilla/material-temporal-adapter';
+
+providers: [
+  ...provideZonedDateTimeAdapter({
+    timezone: 'UTC',
+    calendar: 'iso8601',
+    overflow: 'reject',
+  }),
+],
+```
+
+Initial value: `'2026-05-26T10:30:00+00:00[UTC]'`
+
+## America/New_York
+
+**ZonedDateTime/Datepicker → New York Datepicker**
+
+```typescript
+...provideZonedDateTimeAdapter({
+  timezone: 'America/New_York',
+  calendar: 'iso8601',
+  overflow: 'reject',
+}),
+```
+
+## DST disambiguation
+
+**ZonedDateTime/Datepicker → DST Gap: Reject**
+
+```typescript
+...provideZonedDateTimeAdapter({
+  timezone: 'America/New_York',
+  disambiguation: 'reject',
+}),
+```
+
+**DST Gap: Compatible**
+
+```typescript
+...provideZonedDateTimeAdapter({
+  timezone: 'America/New_York',
+  disambiguation: 'compatible',
+}),
+```
+
+## Rounding (optional)
+
+```typescript
+...provideZonedDateTimeAdapter({
+  timezone: 'UTC',
+  rounding: {
+    smallestUnit: 'minute',
+    roundingMode: 'halfExpand',
+  },
+}),
+```
+
+Applied before `format()` and `toIso8601()`.
+
+## Tokyo matrix
+
+**Calendars/Calendar Arithmetic → Matrix: Zoned Tokyo**
+
+```typescript
+...provideZonedDateTimeAdapter({
+  timezone: 'Asia/Tokyo',
+  calendar: 'iso8601',
+}),
+```
+
+## Form control type
+
+```typescript
+zoned = new FormControl<Temporal.ZonedDateTime | null>(null);
+```
+
+## SSR note
+
+Always pass an explicit `timezone` on the server — never omit. See
+[docs/ssr-considerations.md](https://github.com/kbrilla/material-temporal-adapter/blob/main/docs/ssr-considerations.md).
+
+See **ZonedDateTime/** stories.

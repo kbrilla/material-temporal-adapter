@@ -1,7 +1,7 @@
 import {expect, userEvent, within} from '@storybook/test';
-import {moduleMetadata} from '@storybook/angular';
 import type {Meta, StoryObj} from '@storybook/angular';
 
+import {CONFIG, configBlock} from '../shared/config-snippets';
 import {
   AdapterExplorerDemoComponent,
   EdgeCasesDemoComponent,
@@ -36,8 +36,13 @@ const meta: Meta<EdgeCasesDemoComponent> = {
   parameters: {
     docs: {
       description: {
-        component:
-          'Migrated from the reference edge case and matrix test stories, focused on invalid and boundary values.',
+        component: [
+          'Invalid sentinels, boundary dates, and adapter edge cases.',
+          '',
+          configBlock('Provider', CONFIG.plainDateConstrain),
+          '',
+          configBlock('Detect invalid values', CONFIG.invalidCheck),
+        ].join('\n'),
       },
     },
   },
@@ -63,19 +68,27 @@ export const RunEdgeCaseTests: Story = {
 
 export const InvalidExplorer: StoryObj<AdapterExplorerDemoComponent> = {
   name: 'Invalid Explorer',
+  decorators: [withPlainDateAdapter({calendar: 'iso8601', overflow: 'constrain'})],
   render: () => ({
     moduleMetadata: {imports: [AdapterExplorerDemoComponent]},
     template: '<demo-adapter-explorer />',
   }),
+  parameters: {
+    docs: {description: {story: configBlock('Provider', CONFIG.plainDateConstrain)}},
+  },
 };
 
 export const MatrixPlainDate: StoryObj<MatrixTestSuiteDemoComponent> = {
   name: 'Matrix: PlainDate Invalids',
+  decorators: [withPlainDateAdapter({calendar: 'iso8601', overflow: 'constrain'})],
   render: matrixRender,
   args: {
     adapterLabel: 'PlainDate',
     calendarLabel: 'iso8601 / constrain',
     includeTimepicker: false,
+  },
+  parameters: {
+    docs: {description: {story: configBlock('Provider', CONFIG.plainDateConstrain)}},
   },
 };
 
@@ -87,6 +100,16 @@ export const MatrixPlainDateTime: StoryObj<MatrixTestSuiteDemoComponent> = {
     adapterLabel: 'PlainDateTime',
     calendarLabel: 'iso8601 / constrain',
     includeTimepicker: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: configBlock(
+          'Provider',
+          `...providePlainDateTimeAdapter(undefined, { calendar: 'iso8601', overflow: 'constrain' }),`,
+        ),
+      },
+    },
   },
 };
 
@@ -103,5 +126,8 @@ export const MatrixZonedReject: StoryObj<MatrixTestSuiteDemoComponent> = {
     adapterLabel: 'ZonedDateTime',
     calendarLabel: 'America/New_York / reject',
     includeTimepicker: true,
+  },
+  parameters: {
+    docs: {description: {story: configBlock('Provider', CONFIG.zonedDstReject)}},
   },
 };

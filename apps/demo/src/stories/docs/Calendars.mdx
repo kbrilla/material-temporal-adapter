@@ -1,0 +1,71 @@
+import {Meta} from '@storybook/blocks';
+
+<Meta title="Docs/Calendars" />
+
+# Calendars
+
+Calendar ids are forwarded to Temporal and [`Intl`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat/DateTimeFormat#calendar). Behavior depends on your polyfill.
+
+## PlainDate calendar configs
+
+Each **Calendars/Calendar Arithmetic** story overrides the meta decorator:
+
+| Story | Configuration |
+| --- | --- |
+| ISO 8601 | `providePlainDateAdapter()` (defaults) |
+| Gregorian | `{calendar: 'gregory'}` |
+| Japanese | `{calendar: 'japanese'}` |
+| Hebrew | `{calendar: 'hebrew'}` |
+| Persian | `{calendar: 'persian'}` |
+| First day Monday | `{calendar: 'gregory', firstDayOfWeek: 1}` |
+| First day Saturday | `{calendar: 'gregory', firstDayOfWeek: 6}` |
+| Output ISO → Japanese | `{calendar: 'iso8601', outputCalendar: 'japanese'}` |
+| Output ISO → Hebrew | `{calendar: 'iso8601', outputCalendar: 'hebrew'}` |
+
+Example (Hebrew):
+
+```typescript
+...providePlainDateAdapter(undefined, {
+  calendar: 'hebrew',
+}),
+```
+
+Storage uses [`Temporal.PlainDate.from({ calendar })`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/PlainDate/from). Display with a different calendar uses [`withCalendar()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/PlainDate/withCalendar).
+
+## Dual-calendar pattern
+
+Store ISO for APIs, display in user locale calendar:
+
+```typescript
+...providePlainDateAdapter(undefined, {
+  calendar: 'iso8601',
+  outputCalendar: 'japanese',
+}),
+```
+
+## Tested in CI
+
+`gregory`, `japanese`, `hebrew`, `chinese`, `persian`, `buddhist`, `indian`, `ethiopic`, `coptic`
+
+## Hijri (Islamic) — not tested
+
+Generic `islamic` is **skipped** in tests. TC39 is still defining which Hijri variant ids Temporal must support ([proposal-intl-era-monthcode#29](https://github.com/tc39/proposal-intl-era-monthcode/issues/29)); engines/polyfills still disagree on era labels and month arithmetic.
+
+**Prefer explicit variants** such as `islamic-umalqura` and feature-detect with `Temporal.PlainDate.from({ calendar })`.
+
+Full details: [docs/calendar-support.md](https://github.com/kbrilla/material-temporal-adapter/blob/main/docs/calendar-support.md)
+
+## Feature detection
+
+```typescript
+function supportsCalendar(id: string): boolean {
+  try {
+    Temporal.PlainDate.from({year: 2024, month: 1, day: 1, calendar: id});
+    return true;
+  } catch {
+    return false;
+  }
+}
+```
+
+See **Calendars/** and **PlainDate/Datepicker** stories.

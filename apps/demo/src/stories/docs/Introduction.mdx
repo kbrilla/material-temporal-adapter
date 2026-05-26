@@ -1,0 +1,64 @@
+import {Meta} from '@storybook/blocks';
+
+<Meta title="Docs/Introduction" />
+
+# Temporal adapters for Angular Material
+
+This Storybook demonstrates **`@kbrilla/material-temporal-adapter`** — community-maintained
+`DateAdapter` implementations backed by the [Temporal API](https://tc39.es/proposal-temporal/).
+
+Each story shows a working Material control and documents the **exact provider configuration**
+used in that demo. Copy the config from the story Docs tab or from the adapter pages below.
+
+## Before you start
+
+1. Install `@kbrilla/material-temporal-adapter` and a Temporal polyfill (`temporal-polyfill`).
+2. Import the polyfill **before** Angular bootstraps.
+3. Register **one** split adapter via `providePlainDateAdapter()`, `providePlainDateTimeAdapter()`,
+   or `provideZonedDateTimeAdapter()`.
+
+Production setup (without Storybook decorators): see the repo
+[docs/quickstart.md](https://github.com/kbrilla/material-temporal-adapter/blob/main/docs/quickstart.md).
+
+## Choose an adapter
+
+| Adapter | Temporal type | Provider |
+| --- | --- | --- |
+| Plain date | `Temporal.PlainDate` | `providePlainDateAdapter(formats?, options?)` |
+| Plain date-time | `Temporal.PlainDateTime` | `providePlainDateTimeAdapter(formats?, options?)` |
+| Zoned date-time | `Temporal.ZonedDateTime` | `provideZonedDateTimeAdapter(options, formats?)` — **`timezone` required** |
+
+## Polyfill (required)
+
+```typescript
+import 'temporal-polyfill/global';
+```
+
+Loaded globally in `.storybook/preview.ts` for all stories.
+
+## Default PlainDate config (most stories)
+
+```typescript
+import {providePlainDateAdapter} from '@kbrilla/material-temporal-adapter';
+
+providers: [
+  ...providePlainDateAdapter(),
+],
+```
+
+Defaults: `calendar: 'iso8601'`, `overflow: 'reject'`.
+
+## Storybook wiring
+
+Stories use `applicationConfig()` decorators — see **Docs → Storybook Setup** for the full
+Storybook-specific bootstrap (animations, zone change detection, locale).
+
+## Navigate
+
+- **PlainDate/** — datepicker, calendars, overflow
+- **PlainDateTime/** — timepicker, date-time values
+- **ZonedDateTime/** — time zones, DST, rounding
+- **Calendars/** — non-Gregorian calendar matrix
+- **Form Integration/** — ranges, reactive forms
+- **Invalid Handling/** — invalid sentinels, edge cases
+- **Docs → Ecosystem & Rationale** — why sentinels, helper libraries

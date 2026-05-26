@@ -1,6 +1,7 @@
 import {expect, userEvent, within} from '@storybook/test';
 import type {Meta, StoryObj} from '@storybook/angular';
 
+import {CONFIG, configBlock} from '../shared/config-snippets';
 import {TemporalDatepickerDemoComponent} from '../shared/demo-components';
 import {withPlainDateAdapter} from '../shared/story-providers';
 
@@ -15,8 +16,11 @@ const meta: Meta<TemporalDatepickerDemoComponent> = {
   parameters: {
     docs: {
       description: {
-        component:
-          'Migrated from the reference datepicker demo and configured with `providePlainDateAdapter()`.',
+        component: [
+          'Material datepicker with `Temporal.PlainDate` form values.',
+          '',
+          configBlock('Default provider', CONFIG.plainDateDefault),
+        ].join('\n'),
       },
     },
   },
@@ -37,6 +41,13 @@ export const OverflowConstrain: Story = {
   args: {
     initialValue: '2024-02-29',
   },
+  parameters: {
+    docs: {
+      description: {
+        story: configBlock('Provider', CONFIG.plainDateConstrain),
+      },
+    },
+  },
 };
 
 export const JapaneseCalendar: Story = {
@@ -46,6 +57,13 @@ export const JapaneseCalendar: Story = {
     subtitle: 'PlainDate storage using the Japanese calendar',
     initialValue: '2026-01-20[u-ca=japanese]',
   },
+  parameters: {
+    docs: {
+      description: {
+        story: configBlock('Provider', CONFIG.plainDateJapanese),
+      },
+    },
+  },
 };
 
 export const OutputCalendarMismatch: Story = {
@@ -53,6 +71,13 @@ export const OutputCalendarMismatch: Story = {
   decorators: [withPlainDateAdapter({calendar: 'iso8601', outputCalendar: 'japanese'})],
   args: {
     subtitle: 'ISO calculations displayed with Japanese calendar formatting',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: configBlock('Provider', CONFIG.plainDateOutputJapanese),
+      },
+    },
   },
 };
 

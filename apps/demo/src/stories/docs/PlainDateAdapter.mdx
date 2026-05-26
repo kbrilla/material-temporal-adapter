@@ -1,0 +1,99 @@
+import {Meta} from '@storybook/blocks';
+
+<Meta title="Docs/PlainDate Adapter" />
+
+# PlainDate adapter
+
+Stores **`Temporal.PlainDate`** — calendar date without time or time zone.
+
+## Default configuration
+
+Used by **PlainDate/Datepicker → Basic Datepicker** and most calendar stories:
+
+```typescript
+import {providePlainDateAdapter} from '@kbrilla/material-temporal-adapter';
+
+providers: [
+  ...providePlainDateAdapter(),
+],
+```
+
+Equivalent explicit options:
+
+```typescript
+...providePlainDateAdapter(undefined, {
+  calendar: 'iso8601',
+  overflow: 'reject',
+}),
+```
+
+## Story-specific configs
+
+### Overflow: constrain
+
+**PlainDate/Datepicker → Overflow: Constrain**
+
+```typescript
+...providePlainDateAdapter(undefined, {
+  calendar: 'iso8601',
+  overflow: 'constrain',
+}),
+```
+
+### Japanese calendar storage
+
+**PlainDate/Datepicker → Japanese Calendar**
+
+```typescript
+...providePlainDateAdapter(undefined, {
+  calendar: 'japanese',
+}),
+```
+
+Initial value example: `'2026-01-20[u-ca=japanese]'`
+
+### ISO storage, Japanese display
+
+**PlainDate/Datepicker → ISO Calc / Japanese Output**
+
+```typescript
+...providePlainDateAdapter(undefined, {
+  calendar: 'iso8601',
+  outputCalendar: 'japanese',
+}),
+```
+
+### First day of week
+
+**Calendars/Calendar Arithmetic → First Day: Monday**
+
+```typescript
+...providePlainDateAdapter(undefined, {
+  calendar: 'gregory',
+  firstDayOfWeek: 1,
+}),
+```
+
+**First Day: Saturday** uses `firstDayOfWeek: 6`.
+
+### Other calendars
+
+| Story | `calendar` option |
+| --- | --- |
+| Calendar: Gregorian | `'gregory'` |
+| Calendar: Hebrew | `'hebrew'` |
+| Calendar: Persian | `'persian'` |
+| Output: ISO → Hebrew | `calendar: 'iso8601', outputCalendar: 'hebrew'` |
+
+## Form control type
+
+```typescript
+date = new FormControl<Temporal.PlainDate | null>(null);
+```
+
+## Limitations
+
+- No timepicker support — use `PlainDateTimeAdapter` or `ZonedDateTimeAdapter`.
+- `adapter.setTime()` throws on PlainDate.
+
+See **PlainDate/** stories for live examples.
