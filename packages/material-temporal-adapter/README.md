@@ -126,7 +126,7 @@ If you prototyped against `@angular/material-temporal-adapter` or the PR branch,
 
 ## Demo
 
-Storybook examples live in this monorepo under `apps/demo`. A hosted demo will be published to GitHub Pages at `https://kbrilla.github.io/material-temporal-adapter/` (see the root [README](../../README.md)).
+Storybook examples live in this monorepo under `apps/demo`. **Live demo:** https://kbrilla.github.io/material-temporal-adapter/
 
 ## License
 

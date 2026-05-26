@@ -8,7 +8,7 @@ Monorepo for **@kbrilla/material-temporal-adapter** — community-maintained Tem
 
 | Path | npm | Description |
 | --- | --- | --- |
-| [packages/material-temporal-adapter](./packages/material-temporal-adapter/) | [`@kbrilla/material-temporal-adapter`](https://www.npmjs.com/package/@kbrilla/material-temporal-adapter) | Split adapters: PlainDate, PlainDateTime, ZonedDateTime |
+| [packages/material-temporal-adapter](./packages/material-temporal-adapter/) | `@kbrilla/material-temporal-adapter` *(npm publish pending)* | Split adapters: PlainDate, PlainDateTime, ZonedDateTime |
 | [apps/demo](./apps/demo/) | *(private)* | Storybook demo and visual/interaction tests |
 
 **Package documentation:** [packages/material-temporal-adapter/README.md](./packages/material-temporal-adapter/README.md)

@@ -123,7 +123,7 @@ provideZonedDateTimeAdapter({timezone: 'UTC'}, MAT_TEMPORAL_ZONED_FORMATS);
 | Resource | PR era | Community |
 | --- | --- | --- |
 | Reference Storybook | [temporal-adapter-demo](https://github.com/kbrilla/temporal-adapter-demo) | `apps/demo` in this repo |
-| Hosted demo | kbrilla.github.io/temporal-adapter-demo | kbrilla.github.io/material-temporal-adapter (GitHub Pages, pending) |
+| Hosted demo | kbrilla.github.io/temporal-adapter-demo | [kbrilla.github.io/material-temporal-adapter](https://kbrilla.github.io/material-temporal-adapter/) |
 
 ## Issue and PR pointers
 
