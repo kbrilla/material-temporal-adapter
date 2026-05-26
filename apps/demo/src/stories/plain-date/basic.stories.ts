@@ -1,49 +1,83 @@
-import {Component} from '@angular/core';
-import {ReactiveFormsModule, FormControl} from '@angular/forms';
-import {MatDatepickerModule} from '@angular/material/datepicker';
-import {MatFormFieldModule} from '@angular/material/form-field';
-import {MatInputModule} from '@angular/material/input';
-import {provideAnimationsAsync} from '@angular/platform-browser/animations/async';
-import {applicationConfig, type Meta, type StoryObj} from '@storybook/angular';
-import {Temporal} from 'temporal-polyfill';
+import {expect, userEvent, within} from '@storybook/test';
+import type {Meta, StoryObj} from '@storybook/angular';
 
-import {providePlainDateAdapter} from '@kbrilla/material-temporal-adapter';
+import {TemporalDatepickerDemoComponent} from '../shared/demo-components';
+import {withPlainDateAdapter} from '../shared/story-providers';
 
-@Component({
-  selector: 'demo-plain-date-datepicker',
-  imports: [MatDatepickerModule, MatFormFieldModule, MatInputModule, ReactiveFormsModule],
-  template: `
-    <mat-form-field appearance="outline">
-      <mat-label>PlainDate</mat-label>
-      <input matInput [matDatepicker]="picker" [formControl]="date" />
-      <mat-datepicker-toggle matIconSuffix [for]="picker" />
-      <mat-datepicker #picker />
-      <mat-hint>Selected value: {{ isoValue }}</mat-hint>
-    </mat-form-field>
-  `,
-})
-class PlainDateDatepickerStory {
-  protected readonly date = new FormControl<Temporal.PlainDate | null>(
-    Temporal.PlainDate.from('2026-05-26'),
-  );
-
-  protected get isoValue(): string {
-    return this.date.value?.toString() ?? 'none';
-  }
-}
-
-const meta: Meta<PlainDateDatepickerStory> = {
-  title: 'PlainDate/Basic',
-  component: PlainDateDatepickerStory,
-  decorators: [
-    applicationConfig({
-      providers: [provideAnimationsAsync(), providePlainDateAdapter()],
-    }),
-  ],
+const meta: Meta<TemporalDatepickerDemoComponent> = {
+  title: 'PlainDate/Datepicker',
+  component: TemporalDatepickerDemoComponent,
+  args: {
+    title: 'PlainDate Datepicker Demo',
+    subtitle: 'Angular Material datepicker backed by Temporal.PlainDate',
+    initialValue: '2026-05-26',
+  },
+  parameters: {
+    docs: {
+      description: {
+        component:
+          'Migrated from the reference datepicker demo and configured with `providePlainDateAdapter()`.',
+      },
+    },
+  },
+  decorators: [withPlainDateAdapter()],
 };
 
 export default meta;
 
-type Story = StoryObj<PlainDateDatepickerStory>;
+type Story = StoryObj<TemporalDatepickerDemoComponent>;
 
-export const Basic: Story = {};
+export const Basic: Story = {
+  name: 'Basic Datepicker',
+};
+
+export const OverflowConstrain: Story = {
+  name: 'Overflow: Constrain',
+  decorators: [withPlainDateAdapter({calendar: 'iso8601', overflow: 'constrain'})],
+  args: {
+    initialValue: '2024-02-29',
+  },
+};
+
+export const JapaneseCalendar: Story = {
+  name: 'Japanese Calendar',
+  decorators: [withPlainDateAdapter({calendar: 'japanese'})],
+  args: {
+    subtitle: 'PlainDate storage using the Japanese calendar',
+    initialValue: '2026-01-20[u-ca=japanese]',
+  },
+};
+
+export const OutputCalendarMismatch: Story = {
+  name: 'ISO Calc / Japanese Output',
+  decorators: [withPlainDateAdapter({calendar: 'iso8601', outputCalendar: 'japanese'})],
+  args: {
+    subtitle: 'ISO calculations displayed with Japanese calendar formatting',
+  },
+};
+
+export const YearView: Story = {
+  name: 'Year View',
+  args: {
+    startView: 'year',
+  },
+};
+
+export const MultiYearView: Story = {
+  name: 'Multi-Year View',
+  args: {
+    startView: 'multi-year',
+  },
+};
+
+export const InteractiveTest: Story = {
+  name: 'Interactive Test',
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole('textbox', {name: /select a date/i});
+
+    await expect(input).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button'));
+    await expect(await canvas.findByText(/Selected Value:/i)).toBeInTheDocument();
+  },
+};
