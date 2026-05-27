@@ -1,4 +1,4 @@
-import {expect, within} from '@storybook/test';
+import {expect, userEvent, within} from '@storybook/test';
 import type {Meta, StoryObj} from '@storybook/angular';
 
 import {CONFIG, configBlock} from '../shared/config-snippets';
@@ -38,6 +38,26 @@ type Story = StoryObj<TemporalTimepickerDemoComponent>;
 
 export const BasicTimepicker: Story = {
   name: 'Basic Timepicker',
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole('textbox', {name: /select a time/i})).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button'));
+    await expect(await canvas.findByText(/Selected Time:/i)).toBeInTheDocument();
+  },
+};
+
+export const InvalidTimeInput: Story = {
+  name: 'Invalid Time Input',
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole('textbox', {name: /select a time/i});
+
+    await userEvent.clear(input);
+    await userEvent.type(input, 'not-a-time');
+    await userEvent.tab();
+    await expect(await canvas.findByText(/"_invalid"\s*:\s*true/i)).toBeInTheDocument();
+  },
 };
 
 export const VerifyTimeComponents: Story = {

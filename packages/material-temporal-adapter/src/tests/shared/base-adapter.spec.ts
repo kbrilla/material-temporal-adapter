@@ -1,6 +1,6 @@
 import { createEnvironmentInjector, NgZone } from "@angular/core";
 import { MAT_DATE_LOCALE } from "@angular/material/core";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BaseTemporalAdapter } from "../../shared/base-temporal-adapter";
 import {
@@ -10,8 +10,8 @@ import {
 import { TemporalBaseOptions } from "../../shared/types";
 
 class TestPlainDateAdapter extends BaseTemporalAdapter<Temporal.PlainDate> {
-  constructor(options: Partial<TemporalBaseOptions> = {}) {
-    super({ calendar: "iso8601", overflow: "reject", ...options });
+  constructor(options: Partial<TemporalBaseOptions> = {}, locale: string | null = null) {
+    super({calendar: 'iso8601', overflow: 'reject', ...options}, locale);
   }
 
   today() {
@@ -124,5 +124,23 @@ describe("BaseTemporalAdapter", () => {
     expect(() =>
       adapter.format(adapter.invalid(), { year: "numeric" }),
     ).toThrowError(/Cannot format invalid date/);
+  });
+
+  it("falls back to 12 months when calendar metadata lookup fails", () => {
+    const originalFrom = Temporal.PlainDate.from.bind(Temporal.PlainDate);
+    let callCount = 0;
+    const fromSpy = vi.spyOn(Temporal.PlainDate, "from").mockImplementation((...args) => {
+      callCount += 1;
+      if (callCount === 1) {
+        throw new Error("broken calendar metadata");
+      }
+      return originalFrom(...args);
+    });
+
+    try {
+      expect(adapter.getMonthNames("long")).toHaveLength(12);
+    } finally {
+      fromSpy.mockRestore();
+    }
   });
 });

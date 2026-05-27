@@ -4,13 +4,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-import {Inject, Injectable, Optional} from '@angular/core';
-import {MAT_DATE_LOCALE} from '@angular/material/core';
+import {Injectable} from '@angular/core';
 
 import {BaseTemporalAdapter} from '../shared/base-temporal-adapter';
 import {createInvalidZonedDateTime, isTemporalInvalid} from '../shared/invalid';
 import type {TemporalDisambiguation, TemporalOffsetOption, TemporalRoundingOptions} from '../shared/types';
-import {MAT_TEMPORAL_ZONED_OPTIONS, type ZonedDateTimeOptions} from './zoned-datetime-options';
+import {type ZonedDateTimeOptions} from './zoned-datetime-options';
 
 interface ZonedFromOptions {
   overflow?: 'reject' | 'constrain';
@@ -29,10 +28,7 @@ export class ZonedDateTimeAdapter extends BaseTemporalAdapter<Temporal.ZonedDate
   private readonly _offset?: TemporalOffsetOption;
   private readonly _rounding?: TemporalRoundingOptions;
 
-  constructor(
-    @Optional() @Inject(MAT_TEMPORAL_ZONED_OPTIONS) options: ZonedDateTimeOptions | null,
-    @Optional() @Inject(MAT_DATE_LOCALE) locale: string | null,
-  ) {
+  constructor(options: ZonedDateTimeOptions | null, locale: string | null) {
     super(options ?? {}, locale);
 
     if (!options?.timezone) {

@@ -138,6 +138,20 @@ providePlainDateAdapter({
 
 Default format tokens: `MAT_TEMPORAL_DATE_FORMATS`, `MAT_TEMPORAL_DATETIME_FORMATS`, `MAT_TEMPORAL_ZONED_FORMATS`.
 
+## Parsing
+
+`adapter.parse(value, parseFormat?)` accepts string values in **ISO 8601** only —
+the format the Temporal API itself accepts. The `parseFormat` argument exists to
+satisfy Material's `DateAdapter<D>` contract but is ignored, because the Temporal
+proposal deliberately has no format-string parser (`Intl` provides formatting but
+not reverse-parsing).
+
+For custom input formats (e.g. `DD/MM/YYYY`):
+- Pre-parse the string in your component with your preferred library
+- Pass the resulting `Temporal.*` value through `FormControl.setValue` directly
+
+This matches `NativeDateAdapter`'s behavior with non-ISO input.
+
 ## Options reference
 
 Shared options (`PlainDateOptions`, `PlainDateTimeOptions`, `ZonedDateTimeOptions`):

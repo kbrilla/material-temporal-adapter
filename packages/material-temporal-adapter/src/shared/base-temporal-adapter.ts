@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import {Inject, Optional} from '@angular/core';
-import {DateAdapter, MAT_DATE_LOCALE} from '@angular/material/core';
+import {DateAdapter} from '@angular/material/core';
 
 import {ensureTemporalAvailable} from './polyfill-check';
 import {TemporalBaseOptions} from './types';
@@ -24,10 +23,7 @@ export abstract class BaseTemporalAdapter<
   protected readonly _firstDayOfWeek?: number;
   protected readonly _overflow: "reject" | "constrain";
 
-  protected constructor(
-    options: TemporalBaseOptions,
-    @Optional() @Inject(MAT_DATE_LOCALE) locale: string | null,
-  ) {
+  protected constructor(options: TemporalBaseOptions, locale: string | null) {
     super();
     ensureTemporalAvailable();
     this._calendar = options.calendar ?? 'iso8601';

@@ -45,4 +45,25 @@ describeCalendar(CALENDAR, () => {
 
     expect(adapter.getNumDaysInMonth(date)).toBe(date.daysInMonth);
   });
+
+  it("getYearName includes the Japanese era for Reiwa dates", () => {
+    const adapter = createCalendarAdapter(CALENDAR);
+    const reiwaDate = adapter.createDate(2019, 4, 1);
+    const yearName = adapter.getYearName(reiwaDate);
+
+    expect(yearName.length).toBeGreaterThan(0);
+    expect(yearName).not.toBe(String(adapter.getYear(reiwaDate)));
+  });
+
+  it("serializes and deserializes dates across an era boundary", () => {
+    const adapter = createCalendarAdapter(CALENDAR);
+    const heiseiLastDay = adapter.createDate(2019, 3, 30);
+    const reiwaFirstDay = adapter.createDate(2019, 4, 1);
+
+    for (const date of [heiseiLastDay, reiwaFirstDay]) {
+      const roundTripped = adapter.deserialize(adapter.toIso8601(date));
+      expect(roundTripped).not.toBeNull();
+      expect(adapter.sameDate(date, roundTripped!)).toBe(true);
+    }
+  });
 });

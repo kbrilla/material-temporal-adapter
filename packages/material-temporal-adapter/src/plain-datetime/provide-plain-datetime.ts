@@ -11,12 +11,12 @@ import {MAT_TEMPORAL_DATETIME_FORMATS} from '../formats/datetime-formats';
 import {PlainDateTimeAdapter} from './plain-datetime-adapter';
 import {
   MAT_TEMPORAL_PLAIN_DATETIME_OPTIONS,
-  TemporalPlainDateTimeOptions,
+  PlainDateTimeOptions,
 } from './plain-datetime-options';
 
 export function providePlainDateTimeAdapter(
   formats: MatDateFormats = MAT_TEMPORAL_DATETIME_FORMATS,
-  options?: TemporalPlainDateTimeOptions,
+  options?: PlainDateTimeOptions,
 ): Provider[] {
   const resolvedOptions = options ?? {calendar: 'iso8601', overflow: 'reject'};
 
@@ -25,7 +25,7 @@ export function providePlainDateTimeAdapter(
     {provide: MAT_TEMPORAL_PLAIN_DATETIME_OPTIONS, useValue: resolvedOptions},
     {
       provide: DateAdapter,
-      useFactory: (opts: TemporalPlainDateTimeOptions, locale: string | null) =>
+      useFactory: (opts: PlainDateTimeOptions, locale: string | null) =>
         new PlainDateTimeAdapter(opts, locale),
       deps: [MAT_TEMPORAL_PLAIN_DATETIME_OPTIONS, MAT_DATE_LOCALE],
     },

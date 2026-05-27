@@ -1,4 +1,4 @@
-import {expect, within} from '@storybook/test';
+import {expect, userEvent, within} from '@storybook/test';
 import type {Meta, StoryObj} from '@storybook/angular';
 
 import {CONFIG, configBlock} from '../shared/config-snippets';
@@ -39,6 +39,26 @@ type Story = StoryObj<TemporalDatepickerDemoComponent>;
 
 export const UTCDatepicker: Story = {
   name: 'UTC Datepicker',
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole('textbox', {name: /select a date/i})).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button'));
+    await expect(await canvas.findByText(/Selected Value:/i)).toBeInTheDocument();
+  },
+};
+
+export const InvalidInput: Story = {
+  name: 'Invalid Input',
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole('textbox', {name: /select a date/i});
+
+    await userEvent.clear(input);
+    await userEvent.type(input, 'not-a-valid-date');
+    await userEvent.tab();
+    await expect(await canvas.findByText(/"_invalid"\s*:\s*true/i)).toBeInTheDocument();
+  },
 };
 
 export const NewYorkDatepicker: Story = {

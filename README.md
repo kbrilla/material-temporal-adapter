@@ -94,7 +94,7 @@ The Storybook **Docs** section lists copy-paste configs for each scenario (calen
 
 | Path | npm | Description |
 | --- | --- | --- |
-| [packages/material-temporal-adapter](./packages/material-temporal-adapter/) | `@kbrilla/material-temporal-adapter` *(publish pending)* | Split adapters: PlainDate, PlainDateTime, ZonedDateTime |
+| [packages/material-temporal-adapter](./packages/material-temporal-adapter/) | `@kbrilla/material-temporal-adapter` | Split adapters: PlainDate, PlainDateTime, ZonedDateTime |
 | [apps/demo](./apps/demo/) | *(private)* | Storybook demo |
 
 ## Development
@@ -102,8 +102,8 @@ The Storybook **Docs** section lists copy-paste configs for each scenario (calen
 ```bash
 pnpm install
 pnpm build          # build package(s)
-pnpm test           # unit tests (101 cases)
-pnpm test:cov       # coverage
+pnpm test           # unit tests
+pnpm test:cov       # coverage (≥90% thresholds)
 pnpm demo:build     # Storybook static
 ```
 

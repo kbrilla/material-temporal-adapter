@@ -1,8 +1,9 @@
-import {createEnvironmentInjector, NgZone} from '@angular/core';
-import {DateAdapter, MAT_DATE_LOCALE} from '@angular/material/core';
-import {beforeEach, describe, expect, it} from 'vitest';
+import {createEnvironmentInjector} from '@angular/core';
+import {DateAdapter} from '@angular/material/core';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-import {PlainDateAdapter, MAT_TEMPORAL_PLAIN_DATE_OPTIONS} from '../../plain-date';
+import {PlainDateAdapter, providePlainDateAdapter} from '../../plain-date';
+import {testInjectorProviders} from '../shared/test-providers';
 
 const JAN = 0;
 const FEB = 1;
@@ -10,12 +11,9 @@ const MAR = 2;
 
 function createAdapter(options = {}): PlainDateAdapter {
   const injector = createEnvironmentInjector(
-    [
-      {provide: NgZone, useFactory: () => new NgZone({enableLongStackTrace: false})},
-      {provide: MAT_DATE_LOCALE, useValue: 'en-US'},
-      {provide: MAT_TEMPORAL_PLAIN_DATE_OPTIONS, useValue: {calendar: 'iso8601', overflow: 'reject', ...options}},
-      {provide: DateAdapter, useClass: PlainDateAdapter},
-    ],
+    testInjectorProviders(
+      ...providePlainDateAdapter(undefined, {calendar: 'iso8601', overflow: 'reject', ...options}),
+    ),
     null,
   );
   return injector.runInContext(() => injector.get(DateAdapter) as PlainDateAdapter);
@@ -129,5 +127,49 @@ describe('PlainDateAdapter', () => {
     const result = adapter.deserialize('not-a-date');
 
     expect(adapter.isValid(result!)).toBe(false);
+  });
+
+  it('should return an invalid date for unsupported deserialize values', () => {
+    expect(adapter.isValid(adapter.deserialize({})!)).toBe(false);
+  });
+
+  it('falls back to 12 months when calendar metadata lookup fails', () => {
+    const originalFrom = Temporal.PlainDate.from.bind(Temporal.PlainDate);
+    let callCount = 0;
+    const fromSpy = vi.spyOn(Temporal.PlainDate, 'from').mockImplementation((...args) => {
+      callCount += 1;
+      if (callCount === 1) {
+        throw new Error('broken calendar metadata');
+      }
+      return originalFrom(...args);
+    });
+
+    try {
+      expect(() => adapter.createDate(2024, 15, 1)).toThrowError(/Invalid month/);
+    } finally {
+      fromSpy.mockRestore();
+    }
+  });
+
+  describe('outputCalendar', () => {
+    it('stores dates in calendar and formats in outputCalendar', () => {
+      const hebrewAdapter = createAdapter({calendar: 'hebrew', outputCalendar: 'iso8601'});
+      const date = hebrewAdapter.createDate(2024, 0, 15);
+
+      expect(date.calendarId).toBe('hebrew');
+      expect(() =>
+        hebrewAdapter.format(date, {year: 'numeric', month: 'short', day: 'numeric'}),
+      ).not.toThrow();
+    });
+
+    it('round-trips through parse preserving storage calendar', () => {
+      const hebrewAdapter = createAdapter({calendar: 'hebrew', outputCalendar: 'iso8601'});
+      const created = hebrewAdapter.createDate(2024, 0, 15);
+      const parsed = hebrewAdapter.parse(hebrewAdapter.toIso8601(created), null);
+
+      expect(parsed).not.toBeNull();
+      expect(parsed!.calendarId).toBe('hebrew');
+      expect(hebrewAdapter.sameDate(created, parsed!)).toBe(true);
+    });
   });
 });

@@ -20,10 +20,12 @@ describeCalendar(CALENDAR, () => {
     expect(date.calendarId).toBe(CALENDAR);
   });
 
-  it("getYear reads calendar years", () => {
+  it("stores dates with the Buddhist calendar identifier", () => {
     const adapter = createCalendarAdapter(CALENDAR);
+    const date = adapter.createDate(2024, 0, 1);
 
-    expect(adapter.getYear(adapter.createDate(2024, 0, 1))).toBe(2024);
+    expect(date.calendarId).toBe(CALENDAR);
+    expect(adapter.toIso8601(date)).toContain("[u-ca=buddhist]");
   });
 
   it("getMonthNames returns one name per calendar month", () => {
