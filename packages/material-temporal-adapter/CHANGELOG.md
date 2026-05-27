@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+### Minor Changes
+
+- 837f5f9: Structural cleanup, expanded adapter test coverage, Storybook play interactions, CI coverage reporting, and release workflow enablement ahead of the initial npm publish.
+
 All notable changes to `@kbrilla/material-temporal-adapter` are documented here.
 
 ## 0.1.0 — 2026-05-26
