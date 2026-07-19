@@ -28,7 +28,7 @@ It is **not** production-safe with default options, and not as docs/demo/CI-hone
 | **Important** | 12 | Docs/API serialization ambiguity; calendar matrix overclaim; fake integration tests; Storybook/DST demo gaps; rounding types; etc. |
 | **Minor** | 10 | Dead code, argument-order footgun, shallow type tests, stale version notes |
 
-**Verdict:** Do **not** ship default `overflow: 'reject'` for calendar arithmetic used by the datepicker until C0 is fixed (or apps must opt into `overflow: 'constrain'` and accept that as the only safe path). Sentinel and CI/docs honesty issues remain blockers for “complete” claims.
+**Verdict:** Change package default `overflow` to Temporal’s **`constrain`**, and stop duplicating range checks that ignore that knob (see §3.3 / §4.1). Until then, default `'reject'` makes Material month/year navigation throw (**C0**). Sentinel `deserialize`/`clone` (**C1**) and false e2e/lint claims (**C2**) remain blockers for “complete” claims.
 
 **How to fix:** Concrete patch plans (repo-only vs optional Material issue) are in [§20](#20-fix-plans-how-to-address-findings).
 
@@ -187,7 +187,28 @@ getValidDateOrNull(this._dateAdapter.deserialize(control.value))
 
 Also reachable from app code: `adapter.clone(ctrl.value)`, `adapter.parse(sentinel)`, `adapter.deserialize(sentinel)` after a failed parse. Zoned throws earlier via `_assertZoned` (clearer message, still a throw).
 
-**Recommendation:** Align `deserialize` with Material base (`isValid` before return/clone); make `clone`/`parse` return `invalid()` for sentinels. Keep C1 as Critical until fixed — Material UI paths really do call `deserialize` on already-invalid control values.
+##### Better solution for C1 (preferred over ad-hoc `if`s)
+
+**Root cause:** This package’s `deserialize` diverges from Material’s contract (“return valid instance or invalid/null — never throw”), and `clone` assumes a real Temporal value.
+
+**Proposed design (layered):**
+
+1. **Contract layer (required):** Make `BaseTemporalAdapter.deserialize` match Material base semantics:
+   ```ts
+   override deserialize(value: unknown): T | null {
+     if (value == null || value === '') return null;
+     if (this.isDateInstance(value)) {
+       return this.isValid(value) ? this._cloneValid(value) : this.invalid();
+     }
+     // string / number / else → existing paths (never throw)
+   }
+   ```
+2. **Single choke-point for Temporal ops:** private `_cloneValid(date: T): T` / `_requireValid(date: T): T` used by `clone`, `format`, `setTime`, `toIso8601`. Sentinels never reach `Temporal.*.from` / `.with` / `.toString()` expectations.
+3. **`clone` public API:** `isTemporalInvalid(date) || !isValid(date) ? this.invalid() : this._cloneValid(date)`. Prefer `Temporal.PlainDate.from(date)` (object accept) over `from(date.toString())` for valid values.
+4. **Do not** invent a cleverer sentinel (Proxy / fake `toString`) — Material requires `isDateInstance(invalid) === true` and `isValid === false`; the fix is to **honor Material’s deserialize/clone contract**, not to make sentinels look like Temporal.
+5. **Optional hardening:** unit test that simulates Material’s `_assignValueProgrammatically` (deserialize → getValidDateOrNull) with a sentinel already on the control — must not throw.
+
+Keep C1 Critical until (1)+(2) land.
 
 ### 3.3 Time APIs — **MOSTLY ALIGNED**, with intentional PlainDate divergence
 
@@ -198,27 +219,51 @@ Also reachable from app code: `adapter.clone(ctrl.value)`, `adapter.parse(sentin
 | `parseTime` | regex + locale strip | `invalid()` | regex + `PlainTime.from` |
 | `addSeconds` | epoch ms math | **no-op** | `date.add({seconds})` |
 
-PlainDate stubs are documented and appropriate for date-only usage. Caveats (investigated):
+PlainDate stubs are documented and appropriate for date-only usage.
 
-1. **`PlainDateAdapter.addSeconds` no-op — explain / escalate**  
-   Material base `DateAdapter.addSeconds` throws `Method not implemented`. This package returns the same date unchanged.  
-   **Why it matters:** `MatTimepicker` option generation loops with `current = adapter.addSeconds(current, interval)` while `sameDate` stays true (`timepicker/util.ts` `generateOptions`). With a no-op `addSeconds`, **`current` never advances → infinite loop** if someone wires `matTimepicker` under `PlainDateAdapter`.  
-   **Recommendation:** Throw the same “not supported” error as `setTime` (loud fail). Do not keep a silent no-op.
+##### Manual checks inventory — where we overstretch vs `overflow`
 
-2. **`parseTime` locale-extra stripping — upstream origin**  
-   Native strips with `value.replace(/[^0-9:(AM|PM)]/gi, '')` when the first parse fails.  
-   **Introduced in** [angular/components#29806](https://github.com/angular/components/pull/29806) (timepicker) and tightened in commit [`0fb4247`](https://github.com/angular/components/commit/0fb4247ce834c475556a17e116e20f1ec0fd5a5a) (“avoid browser inconsistencies when parsing time”), still in that PR. Comment in Native source: *“Some locales add extra characters around the time, but are otherwise parseable (e.g. `00:05 ч.` in bg-BG).”*  
-   **Should the user do it?** For a drop-in Material adapter, **no** — Native/Moment/Luxon adapters absorb this so `matTimepicker` works with localized `Intl` time strings without app-level pre-processing. Apps can strip themselves, but then Temporal is worse than Native for the same Material control.  
-   **Recommendation:** Port the same fallback strip before the regex / `PlainTime.from` (small, high value). Document that exotic locales beyond AM/PM + 24h still need a custom `parseTime` (same Native caveat in Material timepicker docs).
+| Location | What we do today | Why it was added (likely) | Revised direction |
+| --- | --- | --- | --- |
+| `createDate` month/day pre-checks (`ngDevMode` + `overflow==='reject'`) | Throw Material-shaped “Invalid month index” before Temporal | Copy **NativeDateAdapter.createDate** (`month < 0 \|\| month > 11`, then post-check month overflow) for Material 0-based API messages | Prefer **Temporal.from(..., { overflow: this._overflow })** only; on `RangeError` in reject mode, optionally rethrow a Material-shaped message in `catch`. Drop the *pre*-checks that duplicate Temporal. |
+| `createDate` catch → throw vs `invalid()` | Dev+reject rethrows; else sentinel | Native always throws in dev for bad civil dates; Material parse path needs non-throwing invalid for inputs | Keep catch→`invalid()` for adapter parse ergonomics; don’t pre-validate. |
+| `setTime` 0–23 / 0–59 + `Number.isFinite` (PlainDateTime + Zoned) | Manual throw (dev) / `invalid()` (prod); **`with`/`from` called without `overflow`** | Copy **NativeDateAdapter.setTime** ngDevMode `inRange` checks ([#29799](https://github.com/angular/components/pull/29799)) | **Remove manual range checks.** Pass `{ overflow: this._overflow }` into `with` / `ZonedDateTime.from`. Catch `RangeError` → `invalid()` (or rethrow in dev if you want Native-like messages). That is what `overflow` is for. |
+| `parseTime` hours/minutes/seconds ≤23/59 before `setTime` | Duplicate of setTime gates after regex | Defensive copy of Native regex success path | **Remove.** After regex / `PlainTime.from(..., { overflow })`, call `setTime` and let overflow policy apply. |
+| `parseTime` length > 32 | Hard reject | DoS / garbage guard (not in Native) | Optional keep as parse hygiene (not overflow). Document. |
+| Locale strip missing | — | — | **Add** Native’s strip ([#29806](https://github.com/angular/components/pull/29806) / [`0fb4247`](https://github.com/angular/components/commit/0fb4247ce834c475556a17e116e20f1ec0fd5a5a)) — this is **string normalization**, not a second overflow policy. |
 
-3. **`setTime` validation vs “Temporal will throw anyway”**  
-   **Incorrect assumption.** `PlainDateTime.with({ hour: 25 })` uses Temporal’s default **`overflow: 'constrain'`** → becomes hour `23`, **does not throw**. Only `{ overflow: 'reject' }` throws. This package’s `with({hour, minute, second, millisecond: 0})` does **not** pass `overflow: 'reject'`.  
-   So without the manual 0–23 / 0–59 checks, invalid times would be **silently clamped** by Temporal — similar to Native’s prod `setHours` clamping. The ngDevMode throw + prod `invalid()` is an intentional stricter product choice than raw Temporal `with`. Keep the checks; optionally pass `{ overflow: 'reject' }` into `with` for defense in depth.
+**Principle going forward:** `overflow: 'constrain' | 'reject'` is the single policy knobs for out-of-range **Temporal fields**. Manual 0–23 checks that ignore `overflow` (and call `with` without overflow) defeat that design.
 
-4. **Clearing sub-second fields — why Native zeroes ms**  
-   Introduced with time APIs in [angular/components#29799](https://github.com/angular/components/pull/29799) (“Date adapter changes”) ahead of the timepicker: `clone.setHours(hours, minutes, seconds, 0)`. JS `Date` only has millisecond precision; the `0` clears fractional seconds so typed/selected times don’t keep a previous ms residue.  
-   Temporal has µs/ns. Clearing only `millisecond` leaves e.g. `.000456789`.  
-   **Recommendation:** Also set `microsecond: 0`, `nanosecond: 0` in `setTime` for parity with “replace wall-clock time, drop sub-second residue.” Minor; one-line fix.
+##### `PlainDateAdapter.addSeconds` no-op — scope correction
+
+Only **PlainDateAdapter** no-ops (`return date`). PlainDateTime / Zoned correctly `date.add({ seconds })`.
+
+Wiring `matTimepicker` under `PlainDateAdapter` is **incorrect usage** (same class as calling `setTime` on PlainDate — already throws). You cannot treat a date-only adapter as a time-capable one (“can’t have the apple and eat it”).
+
+**Recommendation:** Keep unsupported-time story consistent — **`addSeconds` should throw** like `setTime` (clear DX if mis-wired). Not a production bug for apps that correctly use PlainDate **without** timepicker. Downgrade from “critical loop” framing to **incorrect-usage / DX**. Docs already say PlainDate ≠ timepicker.
+
+##### Sub-second clearing (µs/ns) — proposed solution
+
+Native `setHours(h, m, s, 0)` zeroes ms because `Date` has no finer fields ([#29799](https://github.com/angular/components/pull/29799)).
+
+```ts
+// PlainDateTime
+return target.with(
+  {
+    hour: hours,
+    minute: minutes,
+    second: seconds,
+    millisecond: 0,
+    microsecond: 0,
+    nanosecond: 0,
+  },
+  {overflow: this._overflow},
+);
+
+// Zoned — same fields inside ZonedDateTime.from(..., this._getZonedFromOptions())
+```
+
+Material timepicker operates at **second** granularity (see also upstream #33354 rejecting intervals &lt; 1s). Clearing µs/ns matches that model.
 
 ### 3.4 `toIso8601` — **MATCHES MATERIAL DATE CONTRACT; MISLEADING FOR DATETIME**
 
@@ -315,14 +360,24 @@ Per **TC39 Temporal docs** ([`PlainDate.from` overflow](https://tc39.es/proposal
 
 Verified the same with `temporal-polyfill` and consistent with the spec text (not a polyfill quirk).
 
-Package default `'reject'` is a **valid product choice** (stricter than Temporal).  
-`docs/design-rationale.md` claim: *“Matches Temporal’s strict-by-default philosophy”* — **incorrect**; fix the rationale wording. Combined with C0, navigation arithmetic still must not use `'reject'` (see §20.1).
+**Package default should change to `'constrain'`** (align with TC39).
+
+| Today | Proposed |
+| --- | --- |
+| `options.overflow ?? 'reject'` in base + token factories + `provide*` fallbacks | `?? 'constrain'` everywhere |
+| Rationale claims “Temporal strict-by-default” | Rewrite: default matches Temporal; opt into `'reject'` for strict construction |
+
+**Why change the default (not only document):**
+
+1. Spec default is `constrain` — current default surprises Temporal-literate users.
+2. **C0 mitigation:** Material month/year navigation stops throwing under defaults without a special-case in `addCalendar*` (still fine to force-constrain nav as belt-and-suspenders).
+3. Matches what Material pickers usually want for civil-date UI (Native clamps; design-rationale already admits pickers “often prefer constrain”).
+
+**Migration:** changelog **breaking** for v0.3 (or clearly called out if still pre-1.0): apps that relied on default reject must pass `overflow: 'reject'` explicitly. Update `design-rationale.md`, READMEs, Storybook defaults, tests that assume reject-by-default.
 
 `addCalendarYears/Months/Days` correctly pass `{ overflow: this._overflow }`.
 
-**`addSeconds` + overflow — alignment proposal:**  
-Temporal `add({ seconds })` does not use calendar `overflow` the way month/day additions do (seconds balance into minutes/hours/days; no “Feb 30” class of ambiguity). Passing `{ overflow: this._overflow }` is effectively a no-op for pure second additions.  
-**Recommendation:** Keep `date.add({ seconds: amount })` without overflow; add a one-line comment in source + behavior-notes: *“`overflow` applies to calendar arithmetic (`addCalendar*`); second additions always balance.”* No API change required. Optionally, for PlainDate, throw instead of no-op (see §3.3.1).
+**`addSeconds` + overflow:** seconds balance; calendar `overflow` is irrelevant. Comment only. PlainDate: throw on misuse (see §3.3).
 
 ### 4.2 Calendars / `withCalendar` — **CORRECT MECHANICS**
 
@@ -414,7 +469,10 @@ BYO polyfill + `ensureTemporalAvailable()` — good. Message names `temporal-pol
 - **NativeDateAdapter contrast (`core.mjs`):** `addCalendarMonths` explicitly clamps to the last valid day of the target month when day overflow occurs — never throws.
 - **Impact:** Selecting/focusing Jan 31 (or Feb 29) and navigating months/years under **default options** can throw an unhandled `RangeError` in all three adapters. This is a normal datepicker path, not an exotic edge case.
 - **Existing tests:** There is coverage that constrain arithmetic works when configured (`plain-date-adapter.spec.ts` “should constrain calendar arithmetic when configured”), but **no default-reject navigation regression** for Jan 31 → February / Feb 29 → non-leap year.
-- **Fix (recommended):** Split policies — keep `overflow: 'reject'` (or document it) for `createDate` / user-input construction if desired, but implement `addCalendarMonths` / `addCalendarYears` with **`constrain`** (or Native-style clamp) regardless of options. Alternatively default options to `constrain` and document that `reject` is unsafe for Material navigation. Add regression tests for both adapters’ month and year transitions.
+- **Fix (recommended, ordered):**
+  1. **Change default `overflow` to `'constrain'`** (TC39 alignment + fixes C0 under defaults) — §4.1.
+  2. Optionally still implement `addCalendarMonths` / `Years` with force-`constrain` so explicit `overflow: 'reject'` does not break Material chrome navigation (belt-and-suspenders; matches Native “nav never throws”).
+  3. Regression tests: Jan 31 → +1 month / Feb 29 → +1 year under **new defaults**; plus reject-opt-in behavior on `createDate` only.
 
 #### C1. `deserialize` / `parse` / `clone` crash on invalid sentinels (PlainDate / PlainDateTime)
 
@@ -1043,19 +1101,17 @@ Two tracks: **(1) fix entirely in this repo** (no Angular Material issue), **(2)
 
 #### C0 — Navigation-safe calendar arithmetic (P0)
 
-**Goal:** Month/year navigation never throws under default options; keep intentional strictness on `createDate` if desired.
+**Goal:** Month/year navigation never throws under default options; overflow policy is Temporal’s, not a second hand-rolled validator.
 
-**Recommended approach (split policies):**
+**Recommended approach:**
 
-1. In `BaseTemporalAdapter.addCalendarMonths` / `addCalendarYears`, **always** use `{ overflow: 'constrain' }` (or Native-style clamp: compute target month/year, then `day = min(day, daysInMonth)`), **independent of** `this._overflow`.
-2. Leave `createDate` / `ZonedDateTime.from` construction on `this._overflow` so apps that want `reject` for typed construction still get it.
-3. Optionally keep `addCalendarDays` on `this._overflow` (day adds rarely overflow the same way) — or also constrain for consistency; document the choice.
-4. Update `docs/design-rationale.md` / `behavior-notes.md`: Temporal default is `constrain`; package default `reject` applies to **construction**, not Material navigation helpers.
-5. **Tests (required):** for each adapter with default options — Jan 31 → +1 month → last day of Feb; Feb 29 → +1 year → Feb 28; Apr 31 path N/A; keyboard-equivalent ±1 month/year vectors from §17.6. Prefer one real `MatDatepicker` fixture that focuses day 31 and clicks next month (proves Material call path).
+1. **Default `overflow: 'constrain'`** in base, DI token factories, and `provide*` fallbacks (breaking vs today’s implicit reject — changelog it).
+2. **Rewrite `design-rationale.md`:** remove “Temporal strict-by-default”; state default matches TC39; `'reject'` is opt-in.
+3. **Belt-and-suspenders (optional but recommended):** `addCalendarMonths` / `addCalendarYears` always pass `{ overflow: 'constrain' }` so apps that opt into `'reject'` for `createDate` still get non-throwing Material chrome (Native never throws on nav).
+4. Remove duplicate pre-checks that fight `overflow` (§3.3 inventory); pass `overflow` into `setTime`’s `with` / `from`.
+5. **Tests:** defaults — Jan 31 → +1 month / Feb 29 → +1 year; opt-in reject — `createDate` only; one MatDatepicker fixture clicking next month from day 31.
 
-**Alternative (simpler, more breaking):** Change default `overflow` to `'constrain'` everywhere. Faster, but weakens the intentional createDate strictness from the implementation session — only take this if you no longer want reject-by-default construction.
-
-**Do not:** Catch `RangeError` and return `invalid()` during navigation — Material would treat the active date as invalid and break the calendar UI.
+**Do not:** Catch `RangeError` on nav and return `invalid()` — breaks calendar UI.
 
 #### C1 — Sentinel-safe `clone` / `parse` / `deserialize` (P0)
 
@@ -1081,7 +1137,7 @@ Two tracks: **(1) fix entirely in this repo** (no Angular Material issue), **(2)
 3. Prefer `Temporal.PlainDate.from(date)` for **valid** clones over `from(date.toString())`.
 4. **Tests:** `clone(invalid)`, `parse(invalid)`, `deserialize(invalid)`, plus a small TestBed/`_assignValueProgrammatically`-style call that deserializes a control holding a sentinel; assert **no throw**.
 
-Also: change `PlainDateAdapter.addSeconds` from no-op to **throw** (timepicker `generateOptions` infinite-loop risk — §3.3.1).
+Also: `PlainDateAdapter.addSeconds` — throw like `setTime` for consistent “no timepicker on PlainDate” DX (incorrect usage if wired otherwise).
 
 #### C2 — Docs / CI honesty (P0, cheap)
 
@@ -1113,7 +1169,7 @@ Do not leave docs claiming round-trip while implementing A.
 
 #### Docs accuracy (P1)
 
-1. Fix overflow rationale: Temporal default **`constrain`**; package construction default **`reject`**.
+1. After default flip: Temporal **and** package default **`constrain`**; document `'reject'` as opt-in (update rationale that wrongly said Temporal is strict-by-default).
 2. Soften NativeDateAdapter parse comparison (Native is also limited; don’t claim Temporal ISO-only as uniquely worse without nuance).
 3. Calendar-support: replace “~20 cases” with the real parameterized count.
 4. Expand `TemporalRoundingMode` type to Temporal’s full set (or `Temporal.RoundToOptions['roundingMode']` if typings allow).
@@ -1180,13 +1236,28 @@ Material is inconsistent today — selection paths clamp, chrome navigation does
 ### 20.3 Suggested implementation order
 
 ```
-1. C0 split-policy arithmetic + unit vectors          (unblocks safe defaults)
-2. C1 sentinel gates + unit vectors                  (unblocks invalid-input paths)
-3. C2 delete false Playwright/lint claims            (trust)
-4. D-1 pick A or B + docs/tests                      (serialization honesty)
-5. StorybookSetup MDX + DST story honesty            (demo)
-6. Optional: Material JSDoc issue above              (ecosystem)
-7. Peer widen + real Mat* fixtures + npm publish     (adoption)
+1. Default overflow → constrain + rationale/docs/tests     (C0 + TC39 align)
+2. C1 Material-shaped deserialize + _cloneValid            (sentinel paths)
+3. Remove setTime/parseTime/createDate pre-checks;         (trust overflow)
+   pass {overflow} into with/from; clear µs/ns
+4. parseTime locale strip (Native parity)                  (string hygiene)
+5. PlainDate addSeconds throw (DX) + Zoned toIso8601 date  (consistency)
+6. C2 delete false Playwright/lint claims
+7. Optional: Material nav clamp PR; force-constrain addCalendar*
+8. Peer widen + real Mat* fixtures + npm publish
 ```
 
-Each of 1–5 is independently shippable on this repo; none require waiting on Angular.
+Each of 1–6 is independently shippable on this repo; none require waiting on Angular.
+
+---
+
+## 21. Maintainer Q&A snapshot (2026-07-19)
+
+| Topic | Maintainer position | Review disposition |
+| --- | --- | --- |
+| C1 / `isValid` first? | Questioned whether path exists | Path exists (`deserialize` before `isValid`); **better fix** = Material-shaped deserialize + `_cloneValid` choke-point (§3.2) |
+| `addSeconds` | Only PlainDate; incorrect usage with timepicker | Agree — DX throw, not a correct-app Critical |
+| Manual checks vs `overflow` | Should not overstretch; use constrain/reject | Agree — inventory in §3.3; remove setTime/parseTime range gates; pass `overflow` into Temporal |
+| µs/ns | Propose solution | Zero ms+µs+ns in `setTime` with `{overflow}` |
+| Zoned `toIso8601` | OK with date-only Material parity | Keep §3.4 preferred option |
+| TC39 default | Should default to `constrain` | Agree — **propose default change** (§4.1 / §20.1) |
