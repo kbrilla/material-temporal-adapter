@@ -30,6 +30,8 @@ It is **not** production-safe with default options, and not as docs/demo/CI-hone
 
 **Verdict:** Do **not** ship default `overflow: 'reject'` for calendar arithmetic used by the datepicker until C0 is fixed (or apps must opt into `overflow: 'constrain'` and accept that as the only safe path). Sentinel and CI/docs honesty issues remain blockers for “complete” claims.
 
+**Upstream:** Since v0.2.0 (2026-05-27), Material **DateAdapter method surface is unchanged** through 20.x / `main`, but npm latest is **Angular/Material 22** while peers are still `>=18 <21` — packaging lag, not missing methods. Official Temporal PR [#32668](https://github.com/angular/components/pull/32668) remains open/dirty; maintainers steered to a community adapter. Details: [§16](#16-upstream-material-drift-since-this-repos-last-update). Edge-case matrix: [§17](#17-edge-case-matrix-verified-2026-07-19).
+
 > **Peer-review note:** A second independent review (2026-07-19) correctly identified C0 as A-1. That finding was initially under-weighted here; it is now Critical after verifying Material call sites + Temporal `RangeError`. Full adjudication: [§15](#15-adjudication-of-peer-review-claims-2026-07-19).
 
 ---
@@ -878,3 +880,54 @@ Add to P0/P1 from earlier sections:
 2. **Watch upstream #33276 / #31803** — split date/time types and timepicker DST reassignment can force adapter API or demo changes even if DateAdapter abstracts stay put.  
 3. **Keep #32668 dirty state in mind** — do not assume Angular will merge an official adapter; community package remains the product.  
 4. Expand regression list in §17.6; C0 test vectors should include the full 31→short-month family, not only Jan/Feb.
+
+---
+
+## 19. Calibration against implementation session (`cd04723e…`)
+
+Source: full Cursor transcript of the community-migration / post-port session that built this repo (plan → subagent execution → Storybook DI fix → delta plan A–C → `5ba760e` on `main`). That session’s own wrap-up already lists topics and Q&A; this section only maps **locked decisions vs this review’s findings**.
+
+### 19.1 Branch / ship state (session fact)
+
+| Fact | Implication for review |
+| --- | --- |
+| Work landed on **`main`** (not a long-lived feature branch); HEAD reviewed = `5ba760e` | Review targets published history, not a WIP branch |
+| Package version **0.2.0** via Changesets; **npm publish still needs `NPM_TOKEN`** | “Shipped” in git/docs sense ≠ necessarily on npm registry |
+| Cursor co-author trailers stripped via rebase | History is intentional; no co-author noise expected |
+
+### 19.2 Locked decisions → review verdict
+
+| Session decision | Review finding | Calibration |
+| --- | --- | --- |
+| Default **`overflow: 'reject'`** (stricter than Temporal’s `constrain`) | **C0** | Decision is **intentional for construction**, but **incomplete for Material**: datepicker calls `addCalendarMonths`/`Years` on `_activeDate`. Session rationale in `design-rationale.md` also misstates Temporal as “strict-by-default” (Temporal default is `constrain`). **Do not reverse the createDate policy blindly** — **split nav arithmetic vs createDate** (recommended fix in §5.1). |
+| Invalid **sentinels kept**; stubs/`toString` “no change” because “Material guards with `isValid`” | **C1** | Sentinel *existence* stays correct (Material `invalid()`). The **“Material always guards” assumption is false** for `clone`/`parse`/`deserialize` on Plain\* — they call `Temporal.*.from(toString())` and throw. Session under-estimated consumption paths. |
+| Playwright / ~570-test budget in v1 plan; delta deferred Playwright | **C2** | Matches: `demo:e2e` / CONTRIBUTING / CHANGELOG still claim Playwright; ~163 Vitest tests shipped. Session consciously deferred runner; **docs were not updated to match**. |
+| Storybook DI: duplicate Material `DateAdapter` token → manual `story-providers.ts` | §7.2 StorybookSetup MDX drift | Confirms why demo uses hand-rolled providers; MDX that shows only `providePlainDateAdapter()` is **incomplete/misleading** for Storybook consumers. |
+| `parseFormat` **ignored** (ISO-only); README note (delta A.5) | §3.5 / docs | Intentional; still overclaim vs Native in places that imply broader parse parity. |
+| DI **`useFactory` + deps only**; dropped `inject()` after Storybook NG0203 | Architecture OK | Do not recommend reverting to field `inject()` without a Storybook/bootstrap plan. |
+| Drop `TemporalPlain*Options` aliases; remove `tslib` peer | Minor packaging | Aligned; ng-packagr may still list `tslib` in dist deps — expected. |
+| Delete Angular shell; Storybook-only demo | Demo scope | Aligned; leftover `demo:e2e` scripts contradict that cleanup. |
+| Islamic calendar **`describe.skip`** (polyfill/engine disagreement) | Calendar docs | Intentional; keep skip + docs, don’t treat as accidental gap. |
+| Validators: **no second package yet**; `isTemporalInvalid` stays here | Out of scope | Do not file “missing Validators” as a v0.2 defect. |
+| Ecosystem helpers (tempo / temporal-kit) documented externally | `temporal-ecosystem.md` | Good boundary; token format/parse remains BYO. |
+| Split adapters; per-adapter tokens; required zoned `timezone`; BYO polyfill; ref year **2017** | Architecture | Affirmed as good decisions throughout this review. |
+
+### 19.3 How discussions progressed (compressed)
+
+1. **Migration plan** → writing-plans → 23 tasks → **subagent-driven** execution.  
+2. **npm publish deferred** early (no account) → later Changesets/version to **0.2.0** on `main`; publish still gated on `NPM_TOKEN`.  
+3. **Git history** cleaned (Cursor co-author removed).  
+4. **Pages/Storybook** broken → long DI debug → factory `Optional` deps bug + **duplicate `@angular/material` tokens** → Storybook-local providers → live fix.  
+5. **Docs UX** pass (quickstart/usage/MDX); migration-from-PR doc removed; Islamic wording + MDN links.  
+6. **Validators brainstorm** → useful but independent of adapter → **defer package**.  
+7. **Day.js/Moment matrix** → ecosystem doc, not adapter scope.  
+8. **Sentinel challenge** (“ugly / use null?”) → kept with rationale essay; delta plan later froze stub methods — **that freeze conflicts with C1**.  
+9. **Delta plan A–C** → structural DI cleanup, coverage thresholds, release prep → push-all-to-`main`.
+
+### 19.4 What this changes in P0 wording
+
+- **C0:** Frame as *“intentional overflow default collides with Material navigation contract”*, not “accidental reject.” Fix = **constrain/clamp in `addCalendar*`**, keep createDate policy if desired.  
+- **C1:** Frame as *“session assumption that Material always `isValid`-guards is wrong”*; sentinel design stays; clone/deserialize/parse must be sentinel-safe.  
+- **C2:** Frame as *“deferred Playwright left living claims”* — delete claims or implement runner.
+
+No product code was changed in this review pass; backlog above is the reconciliation of session intent with Material/Temporal reality.
