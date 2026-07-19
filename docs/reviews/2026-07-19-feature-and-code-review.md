@@ -1231,7 +1231,7 @@ Material is inconsistent today — selection paths clamp, chrome navigation does
 | Timepicker DST reassignment | [#31803](https://github.com/angular/components/issues/31803) |
 | Non-primitive compare / FormControl | Already mitigated here via numeric `compareValue`; no new issue |
 
-**Dual-track recommendation:** keep §20.1 adapter split-policy as the **community package fix** (ships today). Pursue the Material navigation clamp PR as the **ecosystem fix** so Moment/Luxon/Temporal strict modes all benefit — especially if your local picker work already implements that clamp.
+**Dual-track recommendation:** community package — **default `constrain`** + optional force-constrain on `addCalendarMonths/Years` + trust `overflow` in `setTime` (§20.1). Upstream — Material navigation clamp PR so strict adapters of any kind stay safe.
 
 ### 20.3 Suggested implementation order
 
