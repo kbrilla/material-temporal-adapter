@@ -591,7 +591,8 @@ Overall ≥90% can coexist with **missing behavioral coverage** (integration, of
 | Material timepicker APIs | Partial | PlainDate stubs; locale strip missing |
 | Material `toIso8601` date HTML | Yes (date-only) | Docs overstate for DateTime |
 | Material `deserialize` invalid handling | **No** | Clones invalid → throw |
-| Temporal `overflow` wiring | Yes | Default ≠ Temporal default |
+| Temporal `overflow` wiring | Partial | Forwarded correctly, but default `'reject'` **breaks Material navigation** (C0) |
+| Material month/year navigation | **No** (defaults) | Must clamp/constrain like NativeDateAdapter |
 | Temporal `disambiguation` / `offset` | Yes | `offset` untested |
 | Temporal `roundingMode` full set | **No** | Type subset |
 | Docs accuracy | Mixed | Several false/inflated claims |
@@ -719,3 +720,161 @@ A second agent review listed findings A-1, D-1…D-4, T-1, T-2, I-1. Each claim 
 ### Severity calibration note on D-1
 
 Peer rates D-1 **High**. We rate the **documentation contradiction** Important and the **API choice** as intentional-Material-shaped unless the package promises Temporal-faithful serialization. Either way it must be resolved before SSR/API guidance is trustworthy — but it is not the same class of defect as unhandled `RangeError` during month navigation (C0).
+
+---
+
+## 16. Upstream Material drift since this repo’s last update
+
+**Repo freeze point:** `main` tip `5ba760e` — **2026-05-27** (“Version Packages” / v0.2.0).  
+**Dev pin:** `@angular/material@19.2.19` (monorepo overrides).  
+**Declared peers:** `@angular/material` / `cdk` / `core` **`>=18 <21`**.  
+**Review date:** 2026-07-19 (~7.5 weeks later).
+
+### 16.1 npm / Angular version landscape
+
+| Package version | Published (npm `time`) | Relative to repo freeze |
+| --- | --- | --- |
+| `@angular/material@19.2.19` | 2025-06-25 | Dev pin (already old at freeze) |
+| `@angular/material@20.2.14` | 2025-11-19 | Within peer range; latest 20.x at review |
+| `@angular/material@21.2.14` | **2026-06-03** | **After freeze; outside peers (`<21`)** |
+| `@angular/material@22.0.5` | **2026-07-16** | After freeze; outside peers |
+| `@angular/core@latest` / `@angular/material@latest` | **22.0.7 / 22.0.5** (2026-07-19) | Unsupported by current peer range |
+
+**Implication:** The community package’s peer window already excludes current Angular/Material stable (21–22). Consumers on latest Angular cannot install without `peerDependency` overrides. Supporting 21+ is a packaging/compatibility task independent of DateAdapter method shape (below).
+
+### 16.2 Did `DateAdapter` / `NativeDateAdapter` change?
+
+Compared raw sources from `angular/components` tags / `main`:
+
+| Comparison | Result |
+| --- | --- |
+| `19.2.19` vs `20.2.14` `date-adapter.ts` | **Byte-identical** |
+| `19.2.19` vs `20.2.14` `native-date-adapter.ts` | **Byte-identical** |
+| `20.2.14` vs `main` `date-adapter.ts` | **No abstract/concrete method surface change.** Only: remove deprecated `MAT_DATE_LOCALE_FACTORY` (inline factory); `locale` → `locale!` definite assignment. |
+| `20.2.14` vs `main` `native-date-adapter.ts` | DI modernization: `@Injectable()` → `@Service({autoProvided: false})`; drop deprecated `useUtcForDisplay` / multi-constructor shim. **Behavioral date/time methods unchanged.** |
+| Abstract method set (both) | Same 22 abstracts including `toIso8601`, plus optional time APIs (`setTime`, `parseTime`, `addSeconds`, …) |
+
+**Conclusion:** Within the supported peer band (18–20), the DateAdapter **contract this package implements has not moved** since v0.2.0. On `main` / Angular 21–22, adapters may need DI decorator updates (`@Service`) when Material’s publish style changes, but **no new DateAdapter methods** appeared that this package is missing.
+
+Material’s own JSDoc still states the clamp contract this package violates under default `reject`:
+
+- `addCalendarMonths`: *“adding 1 month to Jan 31, 2017 → Feb 28, 2017”*
+- `addCalendarYears`: *“adding 1 year to Feb 29, 2016 → Feb 28, 2017”*
+
+That documentation is unchanged on `main` and strengthens **C0**.
+
+### 16.3 Datepicker / timepicker commits after 2026-05-27
+
+`src/material/core/datetime`: **no commits** since 2026-05-01 (API surface idle).
+
+Relevant component commits after freeze:
+
+| Date | SHA | Change | Adapter impact |
+| --- | --- | --- | --- |
+| 2026-07-13 | `9a247a8` | datepicker focus-indicator shape | Visual only |
+| 2026-07-09 | `ebd64a1` | form-field error state tracker | Indirect forms UX |
+| 2026-06-05 | `5a8f7df` (#33354) | timepicker: reject intervals **&lt; 1 second** in `generateOptions` | Avoids UI freeze; reinforces that option lists are second-granularity — aligns with this adapter clearing ms in `setTime` and operating at second precision |
+
+No upstream commit since freeze fixes or changes month-arithmetic clamping behavior.
+
+### 16.4 Upstream Temporal / adapter tracking issues & PRs
+
+| Ref | State | Updated | Relevance to this repo |
+| --- | --- | --- | --- |
+| [#25753](https://github.com/angular/components/issues/25753) feat: Add Temporal Adapter | **Open** (P3) | 2026-05-26 | Original feature request; comment thread notes month 0-index / year-view friction with Temporal (motivates split adapters + month remapping here). |
+| [#32668](https://github.com/angular/components/pull/32668) feat: material-temporal-adapter | **Open**, `mergeable_state: dirty`, not merged | 2026-05-26 | Authored by `kbrilla`; Angular maintainer feedback (2026-02-11): *“better suited as a community adapter”*. This repo is that extraction. PR stale vs `main` (dirty). |
+| [#33276](https://github.com/angular/components/issues/33276) DateAdapter split date vs time types | **Open** (P3) | 2026-06-08 | Requests first-class `PlainDate` + `PlainTime` (or js-joda Local\*) without hacks; notes invalid-sentinel problem — same design tension this package solves with `isTemporalInvalid`. Future Material API change could simplify PlainDate+timepicker pairing. |
+| [#31803](https://github.com/angular/components/issues/31803) timepicker DST + fixed-zone Luxon | **Open** (P3) | 2025-09-29 | Timepicker `_assignUserSelection` + `setTime` collapses ambiguous DST hours. **Same class of risk** for `ZonedDateTimeAdapter` even with correct `disambiguation` — Material may re-apply HMS onto a target instant. Needs a rendered MatTimepicker×DST fixture, not only adapter unit tests. |
+| [#27255](https://github.com/angular/components/issues/27255) range picker vs non-primitive dates | **Closed** (fixed ~17.0.x) | 2023-12 | js-joda/`valueOf` throws on `<=`. Temporal also throws `Cannot use valueOf` on `<`/`>`/`Number()`. Current Material month view uses `_getCellCompareValue` → `new Date(y,m,d).getTime()` **numeric** compares — so #27255-class failure is **mitigated** for standard month/year cells. Still a landmine if any code path compares raw Temporal with relational operators. |
+| [#30361](https://github.com/angular/components/issues/30361) / [#30910](https://github.com/angular/components/issues/30910) native parse / locale formats | Closed / docs | 2025 | Maintainers: native adapter ignores parse format; *“plan is to eventually use Temporal”*; recommend non-native adapters. Supports this package’s ISO-only parse stance — but **not** the README claim of Native parity for non-ISO strings. |
+| [#32975](https://github.com/angular/components/pull/32975) Luxon UTC docs wrong arity | Open | 2026-04 | Parallel footgun: Material docs confused `provideMomentDateAdapter(formats, options)` vs Luxon single-arg. This package’s **formats-first vs zoned options-first** arity split is the same class of docs risk. |
+| [#32936](https://github.com/angular/components/pull/32936) Luxon adapter options param | Open | 2026-06 | Upstream considering options bags on provide\* helpers — watch for API alignment ideas. |
+
+**Upstream status summary:** Official Temporal adapter is **not** landing in Angular Material soon (community recommendation stands). Material DateAdapter API is stable through 20.x; this repo is behind on **peer support for 21–22**, not on missing adapter methods.
+
+---
+
+## 17. Edge-case matrix (verified 2026-07-19)
+
+Probes used `temporal-polyfill@0.3.2` (repo lockfile) plus Material 19.2.19 datepicker sources. “Adapter impact” assumes default `overflow: 'reject'` unless noted.
+
+### 17.1 Calendar arithmetic / Material navigation (extends C0)
+
+| Case | `reject` | `constrain` | Adapter / Material impact |
+| --- | --- | --- | --- |
+| 2024-01-31 + 1 month | **RangeError** | 2024-02-29 | Next-month / PAGE_DOWN with active day 31 |
+| 2023-01-31 + 1 month | **RangeError** | 2023-02-28 | Non-leap February |
+| 2024-03-31 − 1 month | **RangeError** | 2024-02-29 | Previous-month from Mar 31 |
+| 2024-05-31 + 1 month | **RangeError** | 2024-06-30 | 31 → 30-day month |
+| 2024-08-31 / 10-31 + 1 month | **RangeError** | Sep 30 / Nov 30 | Same family |
+| 2024-12-31 + 1 month | OK → 2025-01-31 | same | Safe |
+| 2024-01-31 + 12 months | OK → 2025-01-31 | same | Year via months can succeed where +1 month fails |
+| 2024-02-29 + 1 year | **RangeError** | 2025-02-28 | Exact Material JSDoc example |
+| 2024-02-29 − 1 year | **RangeError** | 2023-02-28 | PAGE_UP+alt / prev year |
+| 2024-02-29 + 4 years | OK → 2028-02-29 | same | Leap-to-leap OK |
+
+Material year view also does `createDate(year, activeMonth, min(day, daysInMonth))` when changing years — that path **clamps via day count**, so some year transitions avoid `addCalendarYears`. Keyboard/header month navigation still hits `addCalendarMonths` on the raw active day → **C0 remains**.
+
+### 17.2 DST / zoned `setTime` (extends peer #31803)
+
+America/New_York 2024-03-10 02:30 (gap) / 2024-11-03 01:30 (overlap):
+
+| disambiguation | Gap 02:30 | Overlap 01:30 |
+| --- | --- | --- |
+| `compatible` | → 03:30 −04:00 | → 01:30 −04:00 |
+| `earlier` | → 01:30 −05:00 | → 01:30 −04:00 |
+| `later` | → 03:30 −04:00 | → 01:30 −05:00 |
+| `reject` | **RangeError** | **RangeError** |
+
+Adapter `setTime` rebuilds via `ZonedDateTime.from(..., _getZonedFromOptions())`, so `disambiguation: 'reject'` can throw from MatTimepicker selection on transition days. Even with `compatible`, Material timepicker issue **#31803** may still collapse distinct overlap instants when re-assigning onto a target date — **untested with this adapter**.
+
+### 17.3 Calendars / polyfill
+
+| Case | Result with current polyfill | Notes |
+| --- | --- | --- |
+| `islamic`, `islamic-umalqura`, `islamic-tbla`, `islamic-civil` | **RangeError: Invalid protocol results** | Justifies skipped CI matrix; docs correctly say unsupported |
+| Chinese 2023 leap year | `monthsInYear === 13`; month index 3 = `M02L` | `getMonthNames` length 13 OK; year-view Material still iterates month names length — works if names length matches. Leap month **label quality** depends on Intl |
+| Ethiopic | `monthsInYear === 13` | Same 13-month UI pressure as Chinese |
+| Hebrew `PlainDate.from({year:2024,…})` | Maps to large negative ISO year in `toString` annotation | Compare-value path uses `new Date(hebrewYear, month, day).getTime()` — ordering can be weird vs Gregorian expectations for `min`/`max` across calendars |
+
+### 17.4 Parsing / serialization / sentinels
+
+| Case | Behavior | Risk |
+| --- | --- | --- |
+| `PlainDate.from('2024-01-15T14:30:00')` | Accepts, strips to date | PlainDate `_parseString` may accept datetime-shaped ISO |
+| `PlainDate.from` zoned string | Accepts, strips zone | Same |
+| `PlainDateTime.toPlainDate().toString()` | Drops `T23:59:59` | D-1 / docs |
+| Epoch ms `8.64e15` | OK | Adapter treats outside ±8.64e15 as invalid |
+| Epoch ms `8.64e15+1` | Instant throws | Adapter → invalid sentinel |
+| Relational ops on Temporal (`a < b`, `Number(a)`) | **Throws** `Cannot use valueOf` | Mitigated in month grid via numeric `compareValue`; do not put Temporal into raw `<=` paths |
+| `clone`/`deserialize` invalid sentinel | Throws / assert | **C1** |
+
+### 17.5 Formats / timepicker
+
+| Case | Notes |
+| --- | --- |
+| Optional `display.monthLabel` | Material uses it when set; this package’s default formats **omit** `monthLabel` → falls back to `getMonthNames('short')[month]`. OK, but custom formats should set it for non-Gregorian labels |
+| Timepicker interval &lt; 1s | Upstream #33354 now blocks; adapter second-level API is aligned |
+| `parseTime` locale extras | Native strips non `0-9:AMPM`; this adapter does not — `00:05 ч.` style fails |
+| Sub-second fields | `setTime` clears `millisecond` only; µs/ns may remain on PlainDateTime |
+
+### 17.6 Edge cases to add as regression tests (priority)
+
+1. Default-overflow: Jan 31 → +1 month / Feb 29 → +1 year for all three adapters (C0).  
+2. Sentinel `deserialize`/`clone` (C1).  
+3. Non-midnight PlainDateTime `toIso8601` + parse (D-1).  
+4. Zoned `setTime` into NY gap/overlap for each `disambiguation` (including expect throw on `reject`).  
+5. MatTimepicker fixture on overlap day (upstream #31803 class).  
+6. Chinese leap-year `getMonthNames().length === 13` + `createDate` for month index of `M02L`.  
+7. `parseTime('00:05 ч.')` expectation (document fail or add Native-like strip).
+
+---
+
+## 18. Updated recommendations (after upstream + edge pass)
+
+Add to P0/P1 from earlier sections:
+
+1. **Peer range:** plan Angular/Material **21–22** support (or document “18–20 only” prominently). DateAdapter methods are stable; packaging/`@Injectable` vs `@Service` and CI matrix need work.  
+2. **Watch upstream #33276 / #31803** — split date/time types and timepicker DST reassignment can force adapter API or demo changes even if DateAdapter abstracts stay put.  
+3. **Keep #32668 dirty state in mind** — do not assume Angular will merge an official adapter; community package remains the product.  
+4. Expand regression list in §17.6; C0 test vectors should include the full 31→short-month family, not only Jan/Feb.
