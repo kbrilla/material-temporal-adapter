@@ -30,6 +30,8 @@ It is **not** production-safe with default options, and not as docs/demo/CI-hone
 
 **Verdict:** Do **not** ship default `overflow: 'reject'` for calendar arithmetic used by the datepicker until C0 is fixed (or apps must opt into `overflow: 'constrain'` and accept that as the only safe path). Sentinel and CI/docs honesty issues remain blockers for “complete” claims.
 
+**How to fix:** Concrete patch plans (repo-only vs optional Material issue) are in [§20](#20-fix-plans-how-to-address-findings).
+
 **Upstream:** Since v0.2.0 (2026-05-27), Material **DateAdapter method surface is unchanged** through 20.x / `main`, but npm latest is **Angular/Material 22** while peers are still `>=18 <21` — packaging lag, not missing methods. Official Temporal PR [#32668](https://github.com/angular/components/pull/32668) remains open/dirty; maintainers steered to a community adapter. Details: [§16](#16-upstream-material-drift-since-this-repos-last-update). Edge-case matrix: [§17](#17-edge-case-matrix-verified-2026-07-19).
 
 > **Peer-review note:** A second independent review (2026-07-19) correctly identified C0 as A-1. That finding was initially under-weighted here; it is now Critical after verifying Material call sites + Temporal `RangeError`. Full adjudication: [§15](#15-adjudication-of-peer-review-claims-2026-07-19).
