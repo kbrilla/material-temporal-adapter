@@ -420,9 +420,9 @@ BYO polyfill + `ensureTemporalAvailable()` — good. Message names `temporal-pol
 
 - **Where:** `base-temporal-adapter.ts:155-157`, `plain-date-adapter.ts:22-24,68-70`, `plain-datetime-adapter.ts:22-24,71-73`
 - **What:** `isDateInstance(sentinel) === true` → `clone` → `from("[object Object]")` throws
-- **Session context:** Delta plan locked “no change” to sentinel stubs because “Material guards with `isValid`.” That assumption is **too optimistic** — see §19. Sentinel *design* remains correct; these methods must still be sentinel-safe.
-- **Why it matters:** Diverges from Material’s base `DateAdapter.deserialize`, which only returns an instance when `isDateInstance(value) && isValid(value)` and otherwise returns `invalid()`. Concrete failure paths: (1) `deserialize(sentinel)` / `deserialize` of a previous control value that is already a sentinel; (2) `parse(sentinel)` when a non-string instance is passed; (3) any app or Material path that calls `clone` on the current control value after a failed parse. Plain\* throw `Cannot parse: [object Object]`; Zoned throws a clearer assert error
-- **Fix:** In `clone`/`parse`/`deserialize`, if `isTemporalInvalid(value)`, return `invalid()` (or the same sentinel) without calling Temporal APIs — match Material’s `isDateInstance && isValid` gate. Prefer returning `invalid()` over throwing for deserialize parity
+- **Session context:** Delta plan locked “no change” to sentinel stubs because “Material guards with `isValid`.” That assumption is **too optimistic** — see §3.2 and §19. `getValidDateOrNull` / `_isValidValue` run **after** `deserialize`, so they do not prevent the clone throw.
+- **Why it matters:** This package’s `deserialize` override clones any `isDateInstance` without `isValid`, unlike Material base. After `parse` stores a sentinel on the control, Material `writeValue` / validators / `@Input` setters call `deserialize(control.value)` → throw. Also app-level `clone`/`parse` on sentinels.
+- **Fix:** Align `deserialize` with Material base; gate `clone`/`parse` on `isTemporalInvalid` / `!isValid` → return `invalid()` without `Temporal.from`
 
 #### C2. Documentation / CONTRIBUTING / CI claim Playwright + working lint — **false**
 
@@ -1061,6 +1061,8 @@ Two tracks: **(1) fix entirely in this repo** (no Angular Material issue), **(2)
 
 **Goal:** Invalid sentinels never enter `Temporal.*.from(...)`.
 
+**Note:** Material does *not* call `isValid` before `deserialize`. Fixing the override is required even if “happy path” UI only formats valid dates.
+
 **Recommended approach:**
 
 1. Shared helper (private on base or next to `isTemporalInvalid`):
@@ -1073,13 +1075,13 @@ Two tracks: **(1) fix entirely in this repo** (no Angular Material issue), **(2)
    }
    ```
 2. Gate **all three** PlainDate / PlainDateTime / Zoned paths:
-   - `clone` → if invalid, `return this.invalid()` (new sentinel or same reference — either OK if `isValid` false)
+   - `clone` → if invalid, `return this.invalid()`
    - `parse` when `isDateInstance(value)` → same gate before clone
-   - `deserialize` → match Material: only clone when `isDateInstance(value) && isValid(value)`; else if instance-but-invalid → `invalid()`; else existing string/number/`invalid()` logic
-3. Prefer `Temporal.PlainDate.from(date)` (object accept) for **valid** clones over `from(date.toString())` — avoids depending on `toString` on real Temporal objects and matches Temporal’s own copy pattern. Still must not call `from` on sentinels.
-4. **Tests:** `clone(invalid)`, `parse(invalid)`, `deserialize(invalid)`, `deserialize` of a FormControl value after failed string parse; assert `isTemporalInvalid` / `!isValid`, **no throw**.
+   - `deserialize` → match Material base: `isDateInstance && isValid` → return value (or clone valid only); instance-but-invalid → `invalid()`; else string/number paths
+3. Prefer `Temporal.PlainDate.from(date)` for **valid** clones over `from(date.toString())`.
+4. **Tests:** `clone(invalid)`, `parse(invalid)`, `deserialize(invalid)`, plus a small TestBed/`_assignValueProgrammatically`-style call that deserializes a control holding a sentinel; assert **no throw**.
 
-Sentinel stubs (`toString` / `add` / `withCalendar`) can stay minimal; fixing the adapter gates is enough for Material + typical app use.
+Also: change `PlainDateAdapter.addSeconds` from no-op to **throw** (timepicker `generateOptions` infinite-loop risk — §3.3.1).
 
 #### C2 — Docs / CI honesty (P0, cheap)
 
