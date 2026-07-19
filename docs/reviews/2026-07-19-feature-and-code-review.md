@@ -20,15 +20,17 @@
 
 This is a **solid, purposeful community adapter**: split Temporal types, honest invalid-sentinel design, required zoned timezone, and generally careful mapping of Material’s 0-based months / Sunday-based weekdays onto Temporal’s 1-based months / Monday-based `dayOfWeek`. Docs are unusually thorough for a v0.x library.
 
-It is **not** yet as contract-complete or demo/CI-honest as the docs imply.
+It is **not** production-safe with default options, and not as docs/demo/CI-honest as claimed.
 
 | Severity | Count | Themes |
 | --- | --- | --- |
-| **Critical** | 2 | `deserialize`/`clone`/`parse` on invalid sentinels (Plain\*); docs/CI claims that are false |
-| **Important** | 12 | Material/Temporal contract gaps; overclaimed calendar matrix; fake integration tests; missing e2e; `TemporalRoundingMode` subset; Storybook setup docs wrong |
+| **Critical** | 3 | **(C0)** default `overflow: 'reject'` makes Material month/year navigation throw; **(C1)** sentinel `clone`/`deserialize` crash; **(C2)** false e2e/lint claims |
+| **Important** | 12 | Docs/API serialization ambiguity; calendar matrix overclaim; fake integration tests; Storybook/DST demo gaps; rounding types; etc. |
 | **Minor** | 10 | Dead code, argument-order footgun, shallow type tests, stale version notes |
 
-**Verdict:** Ready for careful production use of **PlainDate** datepicker and **PlainDateTime/Zoned** timepicker **if** apps follow the sentinel rules. Not ready to claim “full Material parity + calendar matrix + Playwright” without the fixes below.
+**Verdict:** Do **not** ship default `overflow: 'reject'` for calendar arithmetic used by the datepicker until C0 is fixed (or apps must opt into `overflow: 'constrain'` and accept that as the only safe path). Sentinel and CI/docs honesty issues remain blockers for “complete” claims.
+
+> **Peer-review note:** A second independent review (2026-07-19) correctly identified C0 as A-1. That finding was initially under-weighted here; it is now Critical after verifying Material call sites + Temporal `RangeError`. Full adjudication: [§15](#15-adjudication-of-peer-review-claims-2026-07-19).
 
 ---
 
@@ -138,7 +140,9 @@ NativeDateAdapter uses `new Date(NaN)`. Temporal has no invalid value → brande
 
 ```151:157:packages/material-temporal-adapter/src/shared/base-temporal-adapter.ts
   override deserialize(value: unknown): T | null {
-    // ...
+    if (value == null || value === "") {
+      return null;
+    }
     if (this.isDateInstance(value)) {
       return this.clone(value);
     }
@@ -297,6 +301,19 @@ BYO polyfill + `ensureTemporalAvailable()` — good. Message names `temporal-pol
 
 ### 5.1 Critical
 
+#### C0. Default `overflow: 'reject'` breaks Material calendar navigation (peer A-1 — **confirmed**)
+
+- **Where:** `base-temporal-adapter.ts:127-137` — `addCalendarYears/Months/Days` pass `{ overflow: this._overflow }`; default `_overflow` is `'reject'` (`:32`, provider defaults).
+- **Temporal fact (verified with `temporal-polyfill@0.3.2`):**
+  - `2024-01-31.add({months:1}, {overflow:'reject'})` → `RangeError`
+  - `2024-02-29.add({years:1}, {overflow:'reject'})` → `RangeError`
+  - Same with `{overflow:'constrain'}` → `2024-02-29` / `2025-02-28`
+- **Material fact (verified in `@angular/material@19.2.19` `fesm2022/datepicker.mjs`):** month/year navigation and keyboard PAGE_UP/DOWN call `addCalendarMonths(this._activeDate, ±1)` and `addCalendarYears(this._activeDate, ±1)` on the **active date** (which keeps the day-of-month). Next/prev month buttons use the same pattern (`~2124-2132`). Range selection also adjusts with `addCalendarMonths`.
+- **NativeDateAdapter contrast (`core.mjs`):** `addCalendarMonths` explicitly clamps to the last valid day of the target month when day overflow occurs — never throws.
+- **Impact:** Selecting/focusing Jan 31 (or Feb 29) and navigating months/years under **default options** can throw an unhandled `RangeError` in all three adapters. This is a normal datepicker path, not an exotic edge case.
+- **Existing tests:** There is coverage that constrain arithmetic works when configured (`plain-date-adapter.spec.ts` “should constrain calendar arithmetic when configured”), but **no default-reject navigation regression** for Jan 31 → February / Feb 29 → non-leap year.
+- **Fix (recommended):** Split policies — keep `overflow: 'reject'` (or document it) for `createDate` / user-input construction if desired, but implement `addCalendarMonths` / `addCalendarYears` with **`constrain`** (or Native-style clamp) regardless of options. Alternatively default options to `constrain` and document that `reject` is unsafe for Material navigation. Add regression tests for both adapters’ month and year transitions.
+
 #### C1. `deserialize` / `parse` / `clone` crash on invalid sentinels (PlainDate / PlainDateTime)
 
 - **Where:** `base-temporal-adapter.ts:155-157`, `plain-date-adapter.ts:22-24,68-70`, `plain-datetime-adapter.ts:22-24,71-73`
@@ -313,7 +330,7 @@ BYO polyfill + `ensureTemporalAvailable()` — good. Message names `temporal-pol
 | Root `CHANGELOG.md` “Storybook + Playwright” | Playwright never shipped |
 | CI `pnpm lint` | Passes as empty no-op (`None of the selected packages has a "lint" script`) |
 
-This is a trust / supply-chain hygiene issue for contributors and consumers.
+This erodes contributor and consumer trust: scripts and changelogs advertise tooling that is not present, and CI green-checks a lint step that does nothing.
 
 ### 5.2 Important
 
@@ -587,24 +604,27 @@ Overall ≥90% can coexist with **missing behavioral coverage** (integration, of
 
 ### P0 — correctness / trust
 
-1. Fix sentinel-safe `clone` / `deserialize` / `parse` (C1)  
-2. Remove or implement Playwright; fix CONTRIBUTING / CHANGELOG / `demo:e2e` (C2)  
-3. Fix or remove vacuous CI lint step (C2)
+1. **Fix calendar navigation overflow (C0 / A-1)** — constrain or clamp in `addCalendarMonths`/`Years`; regression tests for Jan 31 and Feb 29  
+2. Fix sentinel-safe `clone` / `deserialize` / `parse` (C1)  
+3. Remove or implement Playwright; fix CONTRIBUTING / CHANGELOG / `demo:e2e` (C2)  
+4. Fix or remove vacuous CI lint step (C2)
 
 ### P1 — contract & docs truth
 
-4. Correct NativeDateAdapter parse comparison; clarify `toIso8601` per adapter  
-5. Fix overflow rationale (Temporal default is `constrain`)  
-6. Fix StorybookSetup MDX to match `story-providers.ts`  
-7. Rewrite calendar-support case-count claims  
-8. Expand `TemporalRoundingMode` to full Temporal set  
+5. Resolve D-1: either full `PlainDateTime` ISO + separate HTML date helper, **or** document date-only `toIso8601` + non-midnight round-trip test proving the limitation  
+6. Correct NativeDateAdapter parse comparison; fix overflow rationale (Temporal default is `constrain`)  
+7. Fix StorybookSetup MDX to match `story-providers.ts`  
+8. Rewrite calendar-support case-count claims  
+9. Expand `TemporalRoundingMode` to full Temporal set  
+10. Replace DST stories with deterministic gap/overlap inputs (peer D-2)
 
 ### P2 — confidence
 
-9. Real MatDatepicker / MatTimepicker fixture tests  
-10. Test `offset`; test `getDateNames` / `getDayOfWeek`  
-11. Add rounding Storybook story or drop claim  
-12. Align `getFirstDayOfWeek` fallback with Material (Sunday) or document divergence  
+11. Real MatDatepicker / MatTimepicker fixture tests (including month nav after selecting day 31)  
+12. Test `offset`; test `getDateNames` / `getDayOfWeek`  
+13. Add rounding Storybook story or drop claim  
+14. Align `getFirstDayOfWeek` fallback with Material (Sunday) or document divergence  
+15. Replace stale `apps/demo/README.md` (peer D-4)
 
 ---
 
@@ -625,6 +645,8 @@ Legend: **Y** tested · **~** partial · **—** missing · **n/a**
 | `toIso8601` | ~ | ~ (no time assert) | Y |
 | `format` | ~ | ~ | Y |
 | `setTime` / `parseTime` / `addSeconds` | Y / Y / — | Y | Y |
+| `addCalendarMonths` default reject (Jan 31) | — (**bug**) | — | — |
+| `addCalendarYears` default reject (Feb 29) | — (**bug**) | — | — |
 | `disambiguation` | n/a | n/a | Y |
 | `offset` | n/a | n/a | — |
 | `rounding` | n/a | n/a | Y |
@@ -643,8 +665,57 @@ Legend: **Y** tested · **~** partial · **—** missing · **n/a**
 
 ## 14. Final assessment
 
-**Architecture and core date math are good.** The library understands Material’s awkward `invalid()` requirement and Temporal’s type split better than most ports.
+**Architecture and type split are good.** The library understands Material’s awkward `invalid()` requirement and Temporal’s Plain vs Zoned separation better than most ports.
 
-**Blockers before calling it “complete”:** sentinel clone/deserialize safety, and honesty about e2e/lint/calendar-matrix/Storybook-setup claims.
+**Blockers before production use with defaults:** C0 (navigation `RangeError` under `overflow: 'reject'`), then C1 (sentinel clone/deserialize). **Blockers before “complete” claims:** C2 (e2e/lint honesty), calendar-matrix/Storybook-setup accuracy, D-1 serialization contract clarity.
 
-**Recommended merge posture for follow-up work:** treat this review doc as the backlog source; land P0 fixes before advertising broader calendar or Playwright support.
+**Recommended merge posture for follow-up work:** land C0 first; treat this review + §15 adjudication as the backlog source.
+
+---
+
+## 15. Adjudication of peer-review claims (2026-07-19)
+
+A second agent review listed findings A-1, D-1…D-4, T-1, T-2, I-1. Each claim was re-checked against source, Material 19.2.19 call sites, and Temporal polyfill behavior.
+
+| Peer ID | Peer severity | Claim | Our disposition | Notes |
+| --- | --- | --- | --- | --- |
+| **A-1** | High | `addCalendarMonths`/`Years` with default `reject` throw on ordinary nav | **Accept as Critical (C0)** | Fully confirmed. Material `datepicker.mjs` calls these on `_activeDate` / `calendar.activeDate`. Native clamps. This review initially treated default `reject` as a design choice only — that understated the Material navigation contract. |
+| **D-1** | High | `PlainDateTime.toIso8601` drops time; docs imply round-trip | **Accept (Important / docs+API contract)** — not “API must keep time” | Peer is right that `usage.md` / SSR docs mislead. Nuance: NativeDateAdapter `toIso8601` is also **date-only** (HTML `type="date"`). Correct dispositions: (a) document date-only + add non-midnight test, **or** (b) return full ISO and add a separate HTML-date helper. Do not “fix” by blindly matching full `toString()` without deciding Material min/max needs. |
+| **T-1** | High | `demo:e2e` absent; Storybook `play` not in CI | **Accept (Critical C2 / Important testing)** | Same finding as our C2 + §8. Agree on “runner or remove claim”. |
+| **D-2** | Medium | DST stories don’t exercise gap/overlap | **Accept (Important I5)** | Confirmed: May 26 explorer + no transition `setTime`. Unit tests already cover DST; stories do not. |
+| **D-3** | Medium | StorybookSetup MDX ≠ manual providers | **Accept (Important I3)** | Same finding. |
+| **D-4** | Medium | `apps/demo/README.md` stale CLI scaffold | **Accept (Minor → P2)** | Same finding. |
+| **T-2** | Medium | Coverage ≠ behavioral completeness | **Accept** | Agree; our §8 is more specific (fake integration tests, `offset`, sentinel paths, C0 nav tests). |
+| **I-1** | Low | Sharper polyfill/engine boundary on calendar claims | **Accept (Minor)** | Already partly in `calendar-support.md`; wording can be tighter on every non-ISO example. |
+
+### Where the peer review is stronger
+
+1. **A-1 / C0** — correctly elevated default overflow as a **runtime datepicker defect**, with the right Material navigation reasoning. Highest-value finding across both reviews.
+2. Clearer **recommended work order** leading with A-1 then D-1 then e2e.
+3. Explicit call for **non-midnight** PlainDateTime round-trip test (we noted time loss; peer states the missing test cleanly).
+
+### Where this review remains stronger / peer gaps
+
+| Gap in peer review | Our finding |
+| --- | --- |
+| Sentinel `clone`/`deserialize`/`parse` crash on Plain\* | **C1** — Critical; peer only asks for sentinel format tests, not the clone throw |
+| Design-rationale misstates Temporal overflow default as “strict-by-default” | Temporal default is **`constrain`** |
+| `TemporalRoundingMode` public type omits 5 valid modes | Type surface bug |
+| README “matches NativeDateAdapter non-ISO parse” | False (`Date.parse` vs Temporal ISO) |
+| CI lint is a vacuous no-op | Peer notes lint “passes without analysis”; we classify as trust defect |
+| Calendar matrix “~20 cases” inflation | Peer softer (“useful matrix”); docs overclaim remains |
+| Fake “integration” tests (no fixture) | Peer asks for real Material flows; we flag misnamed tests |
+| `getFirstDayOfWeek` fallback Monday vs Material Sunday | Not in peer list |
+| PlainDate `addSeconds` silent no-op | Not in peer list |
+
+### Combined P0 backlog (union)
+
+1. **C0 / A-1** — navigation-safe calendar arithmetic  
+2. **C1** — sentinel-safe clone/deserialize/parse  
+3. **D-1** — decide and document `toIso8601` contract; add non-midnight test  
+4. **T-1 / C2** — real browser runner **or** delete e2e claims; fix lint step  
+5. **D-2 / D-3 / D-4** — DST stories, StorybookSetup MDX, demo README  
+
+### Severity calibration note on D-1
+
+Peer rates D-1 **High**. We rate the **documentation contradiction** Important and the **API choice** as intentional-Material-shaped unless the package promises Temporal-faithful serialization. Either way it must be resolved before SSR/API guidance is trustworthy — but it is not the same class of defect as unhandled `RangeError` during month navigation (C0).
