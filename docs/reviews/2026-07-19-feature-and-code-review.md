@@ -933,3 +933,137 @@ Source: full Cursor transcript of the community-migration / post-port session th
 - **C2:** Frame as *“deferred Playwright left living claims”* — delete claims or implement runner.
 
 No product code was changed in this review pass; backlog above is the reconciliation of session intent with Material/Temporal reality.
+
+---
+
+## 20. Fix plans (how to address findings)
+
+Two tracks: **(1) fix entirely in this repo** (no Angular Material issue), **(2) optional Material issue** — only if it adds value beyond fixing the community package. Existing upstream issues (#25753, #32668, #33276, #31803) already cover Temporal adoption, type split, and timepicker DST; **do not duplicate those**.
+
+### 20.1 Fixes without a new Angular Material issue
+
+#### C0 — Navigation-safe calendar arithmetic (P0)
+
+**Goal:** Month/year navigation never throws under default options; keep intentional strictness on `createDate` if desired.
+
+**Recommended approach (split policies):**
+
+1. In `BaseTemporalAdapter.addCalendarMonths` / `addCalendarYears`, **always** use `{ overflow: 'constrain' }` (or Native-style clamp: compute target month/year, then `day = min(day, daysInMonth)`), **independent of** `this._overflow`.
+2. Leave `createDate` / `ZonedDateTime.from` construction on `this._overflow` so apps that want `reject` for typed construction still get it.
+3. Optionally keep `addCalendarDays` on `this._overflow` (day adds rarely overflow the same way) — or also constrain for consistency; document the choice.
+4. Update `docs/design-rationale.md` / `behavior-notes.md`: Temporal default is `constrain`; package default `reject` applies to **construction**, not Material navigation helpers.
+5. **Tests (required):** for each adapter with default options — Jan 31 → +1 month → last day of Feb; Feb 29 → +1 year → Feb 28; Apr 31 path N/A; keyboard-equivalent ±1 month/year vectors from §17.6. Prefer one real `MatDatepicker` fixture that focuses day 31 and clicks next month (proves Material call path).
+
+**Alternative (simpler, more breaking):** Change default `overflow` to `'constrain'` everywhere. Faster, but weakens the intentional createDate strictness from the implementation session — only take this if you no longer want reject-by-default construction.
+
+**Do not:** Catch `RangeError` and return `invalid()` during navigation — Material would treat the active date as invalid and break the calendar UI.
+
+#### C1 — Sentinel-safe `clone` / `parse` / `deserialize` (P0)
+
+**Goal:** Invalid sentinels never enter `Temporal.*.from(...)`.
+
+**Recommended approach:**
+
+1. Shared helper (private on base or next to `isTemporalInvalid`):
+   ```ts
+   protected _cloneOrInvalid(value: T): T {
+     if (isTemporalInvalid(value) || !this.isValid(value)) {
+       return this.invalid();
+     }
+     return this._cloneValid(value); // current Temporal.from / with path
+   }
+   ```
+2. Gate **all three** PlainDate / PlainDateTime / Zoned paths:
+   - `clone` → if invalid, `return this.invalid()` (new sentinel or same reference — either OK if `isValid` false)
+   - `parse` when `isDateInstance(value)` → same gate before clone
+   - `deserialize` → match Material: only clone when `isDateInstance(value) && isValid(value)`; else if instance-but-invalid → `invalid()`; else existing string/number/`invalid()` logic
+3. Prefer `Temporal.PlainDate.from(date)` (object accept) for **valid** clones over `from(date.toString())` — avoids depending on `toString` on real Temporal objects and matches Temporal’s own copy pattern. Still must not call `from` on sentinels.
+4. **Tests:** `clone(invalid)`, `parse(invalid)`, `deserialize(invalid)`, `deserialize` of a FormControl value after failed string parse; assert `isTemporalInvalid` / `!isValid`, **no throw**.
+
+Sentinel stubs (`toString` / `add` / `withCalendar`) can stay minimal; fixing the adapter gates is enough for Material + typical app use.
+
+#### C2 — Docs / CI honesty (P0, cheap)
+
+**Recommended (defer Playwright):**
+
+1. Remove root `demo:e2e` script; remove CONTRIBUTING `pnpm demo:e2e` line; edit CHANGELOG “Storybook + Playwright” → “Storybook (+ Vitest play functions)” or similar.
+2. Either add a real `lint` script (eslint on `packages/*/src`) **or** drop the CI lint job / rename to “noop removed”.
+3. Mark `docs/superpowers/plans/2026-05-26-…` as **superseded** (banner at top) so unchecked Playwright items are not current status.
+
+**Optional later:** add Playwright or Storybook test-runner in CI — only after claims are true again.
+
+#### D-1 — `PlainDateTime.toIso8601` (P1)
+
+Pick one product rule and align docs + tests:
+
+| Option | Behavior | When to choose |
+| --- | --- | --- |
+| **A (Material-shaped)** | Keep date-only `toIso8601`; document explicitly; add test that non-midnight PDT → date-only string and that min/max HTML date attrs still work | Lowest churn; matches NativeDateAdapter |
+| **B (Temporal-faithful)** | `toIso8601` → full `date.toString()`; add `toHtmlDateString()` (or formats helper) for date-only; update SSR/usage samples | Better for APIs/logs that expect datetime |
+
+Do not leave docs claiming round-trip while implementing A.
+
+#### Storybook / demo (P1)
+
+1. Rewrite **StorybookSetup.mdx** to show the **actual** pattern: import `DateAdapter` / formats from the **app’s** `@angular/material/*`, then `useFactory` wiring as in `story-providers.ts` — plus a short “why” (duplicate Material tokens in Storybook bundles).
+2. Add a production snippet that **only** uses `providePlainDateAdapter()` (that remains correct for real apps).
+3. DST stories: seed a control value on a known gap/overlap civil time (e.g. `2024-03-10T02:30` America/New_York) and assert disambiguation outcome in `play` — or drop “DST” from the story title if it only toggles timezone labels.
+4. Replace stale `apps/demo/README.md` with Storybook-only instructions.
+
+#### Docs accuracy (P1)
+
+1. Fix overflow rationale: Temporal default **`constrain`**; package construction default **`reject`**.
+2. Soften NativeDateAdapter parse comparison (Native is also limited; don’t claim Temporal ISO-only as uniquely worse without nuance).
+3. Calendar-support: replace “~20 cases” with the real parameterized count.
+4. Expand `TemporalRoundingMode` type to Temporal’s full set (or `Temporal.RoundToOptions['roundingMode']` if typings allow).
+
+#### Peers / packaging (P1–P2)
+
+1. Widen peers to `>=18 <23` (or document “tested on 19 only”) after a smoke build against Material 21/22.
+2. CI matrix: Node 20 × Angular 19 + one newer major when peers widen.
+3. npm: set `NPM_TOKEN`, merge/publish 0.2.0 (or 0.2.1 after C0/C1) — process only, not a Material issue.
+
+#### Tests to add once C0/C1 land (P2)
+
+- Real `TestBed` + `MatDatepicker` / `MatTimepicker` fixtures (replace DI-only “integration” names).
+- Zoned `offset` option matrix; Chinese leap month `getMonthNames` length; `parseTime` locale-junk expectation.
+
+### 20.2 New Angular Material issue — **optional, one candidate**
+
+**Verdict: not required to fix C0–C2 or any Important item in this package.** Those are solvable here.
+
+**Optional single issue** (file only if you want upstream clarity for *all* adapter authors):
+
+**Title (draft):** Document that `DateAdapter.addCalendarMonths` / `addCalendarYears` must not throw and should clamp overflowing days (NativeDateAdapter behavior)
+
+**Body sketch:**
+
+- Datepicker month/year navigation and keyboard PAGE_UP/DOWN call these APIs on the **active day-of-month** (`datepicker.mjs`).
+- `NativeDateAdapter` clamps to the last valid day of the target month; it never throws.
+- Custom adapters that forward Temporal/Luxon “reject overflow” semantics will throw on ordinary UI paths (Jan 31 → February).
+- Ask: add JSDoc / adapter author guide stating navigation arithmetic should be total (constrain/clamp), distinct from strict parsing if any.
+
+**Why optional:** Fixing this package does not depend on Material merging anything. The issue only reduces future footguns for other adapters.
+
+**Do not open new issues for:**
+
+| Topic | Use instead |
+| --- | --- |
+| Official Temporal adapter | [#25753](https://github.com/angular/components/issues/25753) / PR [#32668](https://github.com/angular/components/pull/32668) |
+| Split PlainDate vs time types | [#33276](https://github.com/angular/components/issues/33276) |
+| Timepicker DST reassignment | [#31803](https://github.com/angular/components/issues/31803) |
+| Non-primitive compare / FormControl | Already mitigated here via numeric `compareValue`; no new issue |
+
+### 20.3 Suggested implementation order
+
+```
+1. C0 split-policy arithmetic + unit vectors          (unblocks safe defaults)
+2. C1 sentinel gates + unit vectors                  (unblocks invalid-input paths)
+3. C2 delete false Playwright/lint claims            (trust)
+4. D-1 pick A or B + docs/tests                      (serialization honesty)
+5. StorybookSetup MDX + DST story honesty            (demo)
+6. Optional: Material JSDoc issue above              (ecosystem)
+7. Peer widen + real Mat* fixtures + npm publish     (adoption)
+```
+
+Each of 1–5 is independently shippable on this repo; none require waiting on Angular.
