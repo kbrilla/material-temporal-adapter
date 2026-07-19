@@ -134,7 +134,7 @@ Material requires:
 
 NativeDateAdapter uses `new Date(NaN)`. Temporal has no invalid value → branded objects with `_invalid: true`. Design is sound and well-documented.
 
-**Bug:** Plain adapters treat sentinels as date instances, then `clone` / `parse` call `Temporal.*.from(date.toString())`. On a plain object, `toString()` is `"[object Object]"` → **throws** (`Cannot parse: [object Object]`).
+**Bug (C1):** Plain adapters treat sentinels as date instances, then `clone` / `parse` call `Temporal.*.from(date.toString())`. On a plain object, `toString()` is `"[object Object]"` → **throws** (`Cannot parse: [object Object]`).
 
 ```22:24:packages/material-temporal-adapter/src/plain-date/plain-date-adapter.ts
   clone(date: Temporal.PlainDate): Temporal.PlainDate {
@@ -148,21 +148,46 @@ NativeDateAdapter uses `new Date(NaN)`. Temporal has no invalid value → brande
       return null;
     }
     if (this.isDateInstance(value)) {
-      return this.clone(value);
+      return this.clone(value); // ← no isValid gate (unlike Material base)
     }
 ```
 
-Material’s default `deserialize` does **not** clone invalid instances:
+##### Does `isValid` always run first? **No — not before `deserialize`/`clone`**
+
+Material’s **base** `DateAdapter.deserialize` gates with `isDateInstance && isValid` and never clones invalids:
 
 ```typescript
-// DateAdapter.deserialize (Material)
+// DateAdapter.deserialize (Material) — safe
 if (value == null || (this.isDateInstance(value) && this.isValid(value))) {
   return value;
 }
 return this.invalid();
 ```
 
-Zoned avoids the crash via `_assertZoned` (throws a clear error). Plain\* can throw an opaque Temporal parse error instead. **Critical** for any path that re-deserializes or clones a control value after a failed parse.
+This package **overrides** that and clones any `isDateInstance` value. Material call sites then do:
+
+```typescript
+// datepicker-input-base._assignValueProgrammatically
+value = this._dateAdapter.deserialize(value);           // runs FIRST
+this._lastValueValid = this._isValidValue(value);
+value = this._dateAdapter.getValidDateOrNull(value);    // too late if deserialize threw
+
+// validators / calendar inputs
+getValidDateOrNull(this._dateAdapter.deserialize(control.value))
+```
+
+`getValidDateOrNull` / `_isValidValue` only see the **result** of `deserialize`. They do **not** protect against a throw inside `deserialize` → `clone`.
+
+**Concrete path that reaches the throw:**
+
+1. User types garbage → `parse("…")` returns `invalid()` sentinel (no throw).
+2. That sentinel is stored on the `FormControl` / CVA (Material keeps invalid values for `matDatepickerParse`).
+3. Later: `writeValue` / min-max / validator / `@Input()` setter calls `deserialize(control.value)` on that sentinel.
+4. `isDateInstance(sentinel) === true` → `clone` → `Temporal.PlainDate.from("[object Object]")` → **throws**.
+
+Also reachable from app code: `adapter.clone(ctrl.value)`, `adapter.parse(sentinel)`, `adapter.deserialize(sentinel)` after a failed parse. Zoned throws earlier via `_assertZoned` (clearer message, still a throw).
+
+**Recommendation:** Align `deserialize` with Material base (`isValid` before return/clone); make `clone`/`parse` return `invalid()` for sentinels. Keep C1 as Critical until fixed — Material UI paths really do call `deserialize` on already-invalid control values.
 
 ### 3.3 Time APIs — **MOSTLY ALIGNED**, with intentional PlainDate divergence
 
@@ -173,12 +198,27 @@ Zoned avoids the crash via `_assertZoned` (throws a clear error). Plain\* can th
 | `parseTime` | regex + locale strip | `invalid()` | regex + `PlainTime.from` |
 | `addSeconds` | epoch ms math | **no-op** | `date.add({seconds})` |
 
-PlainDate stubs are documented and appropriate for date-only usage. Caveats:
+PlainDate stubs are documented and appropriate for date-only usage. Caveats (investigated):
 
-1. **`addSeconds` no-op** instead of Material base “Method not implemented” throw — quieter failure if timepicker is wired by mistake.
-2. **`parseTime` lacks NativeDateAdapter’s locale-extra stripping** (`value.replace(/[^0-9:(AM|PM)]/gi, '')`). Locales that append text (e.g. `00:05 ч.`) fail here; Native succeeds after strip.
-3. **`setTime` validation:** Native throws only in `ngDevMode` and still uses `setHours` outside (browser clamps). Temporal adapters throw in dev and return `invalid()` in prod — closer to Temporal strictness; OK, but not identical.
-4. PlainDateTime `setTime` clears `millisecond` but **not** `microsecond` / `nanosecond` (Native clears ms via `setHours(..., 0)`). Minor residual precision.
+1. **`PlainDateAdapter.addSeconds` no-op — explain / escalate**  
+   Material base `DateAdapter.addSeconds` throws `Method not implemented`. This package returns the same date unchanged.  
+   **Why it matters:** `MatTimepicker` option generation loops with `current = adapter.addSeconds(current, interval)` while `sameDate` stays true (`timepicker/util.ts` `generateOptions`). With a no-op `addSeconds`, **`current` never advances → infinite loop** if someone wires `matTimepicker` under `PlainDateAdapter`.  
+   **Recommendation:** Throw the same “not supported” error as `setTime` (loud fail). Do not keep a silent no-op.
+
+2. **`parseTime` locale-extra stripping — upstream origin**  
+   Native strips with `value.replace(/[^0-9:(AM|PM)]/gi, '')` when the first parse fails.  
+   **Introduced in** [angular/components#29806](https://github.com/angular/components/pull/29806) (timepicker) and tightened in commit [`0fb4247`](https://github.com/angular/components/commit/0fb4247ce834c475556a17e116e20f1ec0fd5a5a) (“avoid browser inconsistencies when parsing time”), still in that PR. Comment in Native source: *“Some locales add extra characters around the time, but are otherwise parseable (e.g. `00:05 ч.` in bg-BG).”*  
+   **Should the user do it?** For a drop-in Material adapter, **no** — Native/Moment/Luxon adapters absorb this so `matTimepicker` works with localized `Intl` time strings without app-level pre-processing. Apps can strip themselves, but then Temporal is worse than Native for the same Material control.  
+   **Recommendation:** Port the same fallback strip before the regex / `PlainTime.from` (small, high value). Document that exotic locales beyond AM/PM + 24h still need a custom `parseTime` (same Native caveat in Material timepicker docs).
+
+3. **`setTime` validation vs “Temporal will throw anyway”**  
+   **Incorrect assumption.** `PlainDateTime.with({ hour: 25 })` uses Temporal’s default **`overflow: 'constrain'`** → becomes hour `23`, **does not throw**. Only `{ overflow: 'reject' }` throws. This package’s `with({hour, minute, second, millisecond: 0})` does **not** pass `overflow: 'reject'`.  
+   So without the manual 0–23 / 0–59 checks, invalid times would be **silently clamped** by Temporal — similar to Native’s prod `setHours` clamping. The ngDevMode throw + prod `invalid()` is an intentional stricter product choice than raw Temporal `with`. Keep the checks; optionally pass `{ overflow: 'reject' }` into `with` for defense in depth.
+
+4. **Clearing sub-second fields — why Native zeroes ms**  
+   Introduced with time APIs in [angular/components#29799](https://github.com/angular/components/pull/29799) (“Date adapter changes”) ahead of the timepicker: `clone.setHours(hours, minutes, seconds, 0)`. JS `Date` only has millisecond precision; the `0` clears fractional seconds so typed/selected times don’t keep a previous ms residue.  
+   Temporal has µs/ns. Clearing only `millisecond` leaves e.g. `.000456789`.  
+   **Recommendation:** Also set `microsecond: 0`, `nanosecond: 0` in `setTime` for parity with “replace wall-clock time, drop sub-second residue.” Minor; one-line fix.
 
 ### 3.4 `toIso8601` — **MATCHES MATERIAL DATE CONTRACT; MISLEADING FOR DATETIME**
 
@@ -204,7 +244,22 @@ Stripping time on PlainDateTime **matches NativeDateAdapter’s date-only HTML c
 
 - `docs/usage.md` says `toIso8601` “wraps `Temporal.toString()`” — **false for PlainDateTime**.
 - Round-trip tests use `sameDate` / midnight `createDate`, so **time loss is invisible**.
-- Zoned returns RFC 9557 with offset + `[timeZone]` — richer than Native; fine for Temporal, but not interchangeable with Native’s `YYYY-MM-DD`.
+
+##### Zoned `toIso8601` — detailed recommendation
+
+| Consumer | Native / PlainDate | Zoned today |
+| --- | --- | --- |
+| `<input type="date" [min]>` / Material date min/max | `YYYY-MM-DD` | RFC 9557 e.g. `2024-01-15T12:30:00+01:00[Europe/Warsaw]` — **not** a valid HTML date string |
+| Persist / API “instant” | N/A (date-only) | Full zoned string is appropriate |
+| Interop with PlainDate adapter output | `YYYY-MM-DD` | Different shape |
+
+**Recommendation (pick and document):**
+
+1. **Preferred for Material parity:** `ZonedDateTimeAdapter.toIso8601` → **calendar date in the adapter timezone**: `date.toPlainDate().toString()` (or `date.withTimeZone(...).toPlainDate()`), same role as Native’s UTC y/m/d join. Keep full RFC 9557 on a separate helper, e.g. `toZonedIso8601()` / document `date.toString()` for apps.
+2. **Alternative:** Keep full RFC 9557 on `toIso8601` but **rename docs** to say it is *not* for HTML `type="date"` min/max; tell apps to use `toPlainDate().toString()` for Material date bounds. Higher footgun risk because Material *calls* `toIso8601` for those attrs.
+3. **Do not** leave docs claiming interchangeability with Native `YYYY-MM-DD`.
+
+Also fix PlainDateTime docs: either document date-only explicitly (Option A in §20 D-1) or add `toHtmlDateString()` and make `toIso8601` full ISO (Option B).
 
 ### 3.5 `parse` vs NativeDateAdapter — **DOCS OVERCLAIM**
 
@@ -226,15 +281,25 @@ Accurate statement: parse format argument is ignored (like Native); **accepted s
 
 ### 3.6 `compareDate` / `sameDate` / `clampDate` — **INHERITED, DATE-ONLY**
 
-Not overridden. Two PlainDateTimes on the same calendar day with different times → `sameDate === true`. Same as Material for `Date`. Apps needing full equality must use Temporal `.equals` / `sameTime`. Documented lightly; worth a usage note.
+Not overridden. Two PlainDateTimes on the same calendar day with different times → `sameDate === true`. Same as Material for `Date`. Apps needing full equality must use Temporal `.equals` / `sameTime`.
+
+**Proposed usage note** (for `docs/usage.md` + package README “Behavior notes”):
+
+> Material’s `DateAdapter.sameDate` / `compareDate` compare **calendar date only** (year/month/day), not time. That matches `NativeDateAdapter` and is what the datepicker needs for selection highlighting.  
+> For full value equality with `PlainDateTime` / `ZonedDateTime`, use Temporal:  
+> - `a.equals(b)` — exact Temporal equality (calendar, time, and for zoned: instant/offset rules)  
+> - `adapter.sameTime(a, b)` — Material helper for hour/minute/second  
+> Do not use `sameDate` to decide whether a timepicker change “did anything.”
 
 ### 3.7 `createDate` month range — **IMPROVED vs Native for non-Gregorian**
 
 Native throws if month ∉ 0–11. This package uses `_getMonthsInYearForDate(year)` — correct for Hebrew/Chinese/etc. Good.
 
-### 3.8 Provider pattern — **ALIGNED**, with footgun
+### 3.8 Provider pattern — **ALIGNED** (arg order intentional)
 
-Matches `provideNativeDateAdapter(formats?)` style. Zoned puts **options first** (`provideZonedDateTimeAdapter(options, formats?)`) while plain put **formats first**. Documented, but easy to misuse at call sites.
+Matches `provideNativeDateAdapter(formats?)` style for plain adapters (formats first, optional).
+
+Zoned puts **options first** (`provideZonedDateTimeAdapter(options, formats?)`) because **`timezone` is required** — if formats were first, callers would always have to pass `formats` or `undefined` before options. That asymmetry is **correct API design**, not a footgun to “fix.” Keep as-is; ensure README tables show both signatures side by side.
 
 ---
 
@@ -242,16 +307,22 @@ Matches `provideNativeDateAdapter(formats?)` style. Zoned puts **options first**
 
 ### 4.1 Overflow — **WIRED CORRECTLY; RATIONALE MISSTATES TEMPORAL DEFAULT**
 
-Verified with `temporal-polyfill`:
+Per **TC39 Temporal docs** ([`PlainDate.from` overflow](https://tc39.es/proposal-temporal/docs/plaindate.html#Temporal.PlainDate.from), [`PlainDate.prototype.add`](https://tc39.es/proposal-temporal/docs/plaindate.html#Temporal.PlainDate.prototype.add)):
 
-- `PlainDate.from({ day: 32 })` → **constrains** to Jan 31 (Temporal default).
-- `{ overflow: 'reject' }` → `RangeError`.
+- Allowed values: `'constrain' | 'reject'`.
+- **Default is `'constrain'`** (out-of-range values clamped). Same for `add` / `subtract` calendar overflow.
+- `'reject'` → `RangeError`.
 
-Package default `'reject'` is valid product choice.  
-`docs/design-rationale.md` claim: *“Matches Temporal’s strict-by-default philosophy”* — **incorrect**. Temporal’s documented default is **`constrain`**. The package is **stricter than Temporal’s default**.
+Verified the same with `temporal-polyfill` and consistent with the spec text (not a polyfill quirk).
 
-`addCalendarYears/Months/Days` correctly pass `{ overflow: this._overflow }`.  
-`addSeconds` on PlainDateTime/Zoned does **not** pass overflow (usually irrelevant for seconds; inconsistent API surface).
+Package default `'reject'` is a **valid product choice** (stricter than Temporal).  
+`docs/design-rationale.md` claim: *“Matches Temporal’s strict-by-default philosophy”* — **incorrect**; fix the rationale wording. Combined with C0, navigation arithmetic still must not use `'reject'` (see §20.1).
+
+`addCalendarYears/Months/Days` correctly pass `{ overflow: this._overflow }`.
+
+**`addSeconds` + overflow — alignment proposal:**  
+Temporal `add({ seconds })` does not use calendar `overflow` the way month/day additions do (seconds balance into minutes/hours/days; no “Feb 30” class of ambiguity). Passing `{ overflow: this._overflow }` is effectively a no-op for pure second additions.  
+**Recommendation:** Keep `date.add({ seconds: amount })` without overflow; add a one-line comment in source + behavior-notes: *“`overflow` applies to calendar arithmetic (`addCalendar*`); second additions always balance.”* No API change required. Optionally, for PlainDate, throw instead of no-op (see §3.3.1).
 
 ### 4.2 Calendars / `withCalendar` — **CORRECT MECHANICS**
 
@@ -265,6 +336,21 @@ Package default `'reject'` is valid product choice.
 `_toZonedFromPlainDateTime` passes disambiguation into `toZonedDateTime`.
 
 **Gap:** `offset` option has **no unit/integration test**.
+
+**Proposed tests** (`zoned-datetime-adapter.spec.ts`):
+
+```ts
+describe('offset option', () => {
+  // Fixed: 2024-01-15T12:00:00-05:00[America/New_York] vs wrong offset
+  it('offset:use keeps the provided offset instant', () => { /* … */ });
+  it('offset:ignore recalculates from local fields + timezone', () => { /* … */ });
+  it('offset:prefer uses offset when in range for that local time', () => { /* … */ });
+  it('offset:reject throws / invalid when offset conflicts', () => { /* … */ });
+  it('parse/deserialize forwards offset from options', () => { /* … */ });
+});
+```
+
+Use one civil time with a deliberately wrong offset string and assert epoch ns / `offsetNanoseconds` per mode (MDN [`ZonedDateTime.from` offset](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/ZonedDateTime/from#offset)).
 
 ### 4.4 Rounding — **BEHAVIOR OK; TYPE SURFACE INCOMPLETE**
 
@@ -280,13 +366,17 @@ TC39 / MDN / polyfill also accept:
 
 (`temporal.d.ts` in this package already lists all nine.) Public options type **rejects valid Temporal modes at compile time**.
 
+**Proposal:** Expand `TemporalRoundingMode` to the full nine-mode union (copy from `temporal.d.ts` / MDN). No runtime change — `date.round()` already accepts them. Add a shallow type test or one runtime test with `halfEven`.
+
 ### 4.5 Day-of-week / locale first day — **MOSTLY CORRECT**
 
 `getLocaleFirstDayOfWeek` falls back to **`1` (Monday)** when `Intl.Locale` / weekInfo missing.
 
 NativeDateAdapter falls back to **`0` (Sunday)**.
 
-Divergence under incomplete Intl — document or align with Material.
+**Document (do not silently flip without a changeset):** add to `docs/behavior-notes.md` and a short **migration** callout (README or `docs/usage.md` “Migrating from NativeDateAdapter”):
+
+> If `Intl.Locale#getWeekInfo` / `weekInfo` is unavailable, this adapter falls back to **Monday (`1`)**. `NativeDateAdapter` falls back to **Sunday (`0`)**. Set `firstDayOfWeek` explicitly when you need stable SSR/legacy parity.
 
 ### 4.6 Epoch → plain conversion uses system TZ — **DOCUMENTED SSR RISK**
 
@@ -294,6 +384,13 @@ Plain adapters: `instant.toZonedDateTimeISO(Temporal.Now.timeZoneId())`.
 Zoned: configured `timezone`.  
 
 SSR doc correctly warns. Still a footgun if apps transfer epoch ms for plain adapters.
+
+**Mitigation options (recommendation order):**
+
+1. **Best for SSR-heavy apps:** Prefer **`ZonedDateTimeAdapter`** with an explicit `timezone` (already required) for any value that crosses the wire as an instant; use Plain\* only for civil dates the user picked (no epoch round-trip).
+2. **Plain adapters — optional `timezone` / `epochTimeZone` on options** (default: current behavior = `Temporal.Now.timeZoneId()`). When set (e.g. `'UTC'`), `_createFromEpochMs` uses that zone for the instant→plain projection. Document: *“For SSR, set `epochTimeZone: 'UTC'` (or your app zone) on plain providers so server and client agree.”*
+3. **Do not** hard-require a zone on PlainDate adapters — that fights the “date-only / no zone” model. Making zone mandatory for plain would be the wrong default for pure datepicker apps.
+4. Docs: discourage `deserialize(epochMs)` / `parse(epochMs)` for Plain\* across SSR; prefer ISO date strings (`YYYY-MM-DD`).
 
 ### 4.7 Polyfill
 
