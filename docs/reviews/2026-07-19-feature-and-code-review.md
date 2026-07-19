@@ -306,6 +306,7 @@ BYO polyfill + `ensureTemporalAvailable()` — good. Message names `temporal-pol
 #### C0. Default `overflow: 'reject'` breaks Material calendar navigation (peer A-1 — **confirmed**)
 
 - **Where:** `base-temporal-adapter.ts:127-137` — `addCalendarYears/Months/Days` pass `{ overflow: this._overflow }`; default `_overflow` is `'reject'` (`:32`, provider defaults).
+- **Session context:** Implementation session **intentionally** chose `reject` (stricter than Temporal’s default `constrain`) for surfacing bad data — see `docs/design-rationale.md` and §19. That intent is fine for **`createDate`**; it is **unsafe** when the same flag is applied to Material navigation arithmetic.
 - **Temporal fact (verified with `temporal-polyfill@0.3.2`):**
   - `2024-01-31.add({months:1}, {overflow:'reject'})` → `RangeError`
   - `2024-02-29.add({years:1}, {overflow:'reject'})` → `RangeError`
@@ -320,6 +321,7 @@ BYO polyfill + `ensureTemporalAvailable()` — good. Message names `temporal-pol
 
 - **Where:** `base-temporal-adapter.ts:155-157`, `plain-date-adapter.ts:22-24,68-70`, `plain-datetime-adapter.ts:22-24,71-73`
 - **What:** `isDateInstance(sentinel) === true` → `clone` → `from("[object Object]")` throws
+- **Session context:** Delta plan locked “no change” to sentinel stubs because “Material guards with `isValid`.” That assumption is **too optimistic** — see §19. Sentinel *design* remains correct; these methods must still be sentinel-safe.
 - **Why it matters:** Diverges from Material’s base `DateAdapter.deserialize`, which only returns an instance when `isDateInstance(value) && isValid(value)` and otherwise returns `invalid()`. Concrete failure paths: (1) `deserialize(sentinel)` / `deserialize` of a previous control value that is already a sentinel; (2) `parse(sentinel)` when a non-string instance is passed; (3) any app or Material path that calls `clone` on the current control value after a failed parse. Plain\* throw `Cannot parse: [object Object]`; Zoned throws a clearer assert error
 - **Fix:** In `clone`/`parse`/`deserialize`, if `isTemporalInvalid(value)`, return `invalid()` (or the same sentinel) without calling Temporal APIs — match Material’s `isDateInstance && isValid` gate. Prefer returning `invalid()` over throwing for deserialize parity
 
