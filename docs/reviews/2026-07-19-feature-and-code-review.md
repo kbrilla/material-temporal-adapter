@@ -1030,24 +1030,44 @@ Do not leave docs claiming round-trip while implementing A.
 - Real `TestBed` + `MatDatepicker` / `MatTimepicker` fixtures (replace DI-only “integration” names).
 - Zoned `offset` option matrix; Chinese leap month `getMonthNames` length; `parseTime` locale-junk expectation.
 
-### 20.2 New Angular Material issue — **optional, one candidate**
+### 20.2 New Angular Material issue / PR — **needed only for a picker-side fix**
 
-**Verdict: not required to fix C0–C2 or any Important item in this package.** Those are solvable here.
+**Verdict for this community package:** C0–C2 are still fully fixable in the adapter (§20.1). No Material issue is *required* to ship a safe `@kbrilla/material-temporal-adapter`.
 
-**Optional single issue** (file only if you want upstream clarity for *all* adapter authors):
+**What is on the remote Temporal PR today:** [`kbrilla/components@temporal-adapter-25753`](https://github.com/kbrilla/components/tree/temporal-adapter-25753) / angular/components#32668 changes **`datepicker.md` / `timepicker.md` only** — no `calendar.ts` / `month-view.ts` / `year-view.ts` / `date-adapter.ts` runtime edits. The old demo’s `vendor/angular-material.tgz` is a **Material 21 rebuild** (formatting / bundling churn vs 19.x), not a custom picker patch set.
 
-**Title (draft):** Document that `DateAdapter.addCalendarMonths` / `addCalendarYears` must not throw and should clamp overflowing days (NativeDateAdapter behavior)
+**If you have unpushed local picker edits** (laptop `/Users/krzbri/repos/components` or similar), they are **not visible in this cloud workspace**. Point the review at that branch/diff and §20.2 should be rewritten against the actual patch. Until then, the **upstream-shaped** fix (mirroring code Material already has) is:
 
-**Body sketch:**
+#### Concrete Material change (prefer a small PR over a vague docs issue)
 
-- Datepicker month/year navigation and keyboard PAGE_UP/DOWN call these APIs on the **active day-of-month** (`datepicker.mjs`).
-- `NativeDateAdapter` clamps to the last valid day of the target month; it never throws.
-- Custom adapters that forward Temporal/Luxon “reject overflow” semantics will throw on ordinary UI paths (Jan 31 → February).
-- Ask: add JSDoc / adapter author guide stating navigation arithmetic should be total (constrain/clamp), distinct from strict parsing if any.
+Material **already clamps day-of-month when selecting a month/year** in year / multi-year views:
 
-**Why optional:** Fixing this package does not depend on Material merging anything. The issue only reduces future footguns for other adapters.
+```346:351:src/material/datepicker/year-view.ts
+    const daysInMonth = this._dateAdapter.getNumDaysInMonth(normalizedDate);
+    // ...
+      Math.min(this._dateAdapter.getDate(this.activeDate), daysInMonth),
+```
 
-**Do not open new issues for:**
+(same pattern in `multi-year-view.ts`)
+
+But **header next/prev month** and **month-view keyboard** still do:
+
+```117:135:src/material/datepicker/calendar.ts
+      this.calendar.activeDate =
+        this.calendar.currentView == 'month'
+          ? this._dateAdapter.addCalendarMonths(this.calendar.activeDate, ±1)
+          : this._dateAdapter.addCalendarYears(...);
+```
+
+**Proposed Material PR:** when advancing months/years for navigation, clamp like year-view selection — e.g. move by month on the period, then `createDate(y, m, min(activeDay, daysInMonth))` (or equivalent via adapter APIs only). That makes navigation safe for strict adapters (`overflow: 'reject'`, Luxon/Temporal reject modes) without forcing every adapter to reimplement Native’s clamp.
+
+**Issue title (if filing before PR):**  
+`MatDatepicker: month/year navigation should clamp day-of-month like year-view selection (strict DateAdapters throw)`
+
+**Why this is the right upstream ask (vs only documenting adapter contract):**  
+Material is inconsistent today — selection paths clamp, chrome navigation does not. Documenting “adapters must clamp” papers over that inconsistency; aligning navigation with year-view is the durable fix.
+
+**Still do not open new issues for:**
 
 | Topic | Use instead |
 | --- | --- |
@@ -1055,6 +1075,8 @@ Do not leave docs claiming round-trip while implementing A.
 | Split PlainDate vs time types | [#33276](https://github.com/angular/components/issues/33276) |
 | Timepicker DST reassignment | [#31803](https://github.com/angular/components/issues/31803) |
 | Non-primitive compare / FormControl | Already mitigated here via numeric `compareValue`; no new issue |
+
+**Dual-track recommendation:** keep §20.1 adapter split-policy as the **community package fix** (ships today). Pursue the Material navigation clamp PR as the **ecosystem fix** so Moment/Luxon/Temporal strict modes all benefit — especially if your local picker work already implements that clamp.
 
 ### 20.3 Suggested implementation order
 
