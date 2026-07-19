@@ -19,6 +19,12 @@ Guides for `@kbrilla/material-temporal-adapter`.
 | [calendar-support.md](./calendar-support.md) | Tested calendars, Islamic skip, feature detection |
 | [ssr-considerations.md](./ssr-considerations.md) | Polyfill order, hydration, explicit timezone |
 
+## Reviews
+
+| Document | Description |
+| --- | --- |
+| [reviews/2026-07-19-feature-and-code-review.md](./reviews/2026-07-19-feature-and-code-review.md) | Feature, docs, demo, testing strategy, and code review vs Material `DateAdapter` + Temporal |
+
 ## Package & demo
 
 | Resource | Link |
