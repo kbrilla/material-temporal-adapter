@@ -24,6 +24,10 @@ Guides for `@kbrilla/material-temporal-adapter`.
 | Document | Description |
 | --- | --- |
 | [reviews/2026-07-19-feature-and-code-review.md](./reviews/2026-07-19-feature-and-code-review.md) | Feature, docs, demo, testing strategy, and code review vs Material `DateAdapter` + Temporal |
+| [reviews/2026-07-19-independent-implementation-review.md](./reviews/2026-07-19-independent-implementation-review.md) | Second independent pass: verified bugs (incl. zoned parse time loss, non-Gregorian label rendering), edge-case walkthrough, gaps + mitigations |
+| [reviews/2026-07-19-review-of-the-review.md](./reviews/2026-07-19-review-of-the-review.md) | Meta-review of the first review: claim-by-claim verification, refuted/overstated items, missed findings |
+| [reviews/2026-07-19-final-combined-review.md](./reviews/2026-07-19-final-combined-review.md) | **Decision document** — canonical findings register (F1–F14), maintainer decisions (D1–D7), test plan, release sequencing |
+| [reviews/2026-07-20-vendor-demo-audit.md](./reviews/2026-07-20-vendor-demo-audit.md) | Byte-level audit of `temporal-adapter-demo`'s `vendor/` tarballs: no custom Material patches; PR #32668 shares F1–F5; origin of the Playwright claims |
 
 ## Package & demo
 
